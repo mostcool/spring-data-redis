@@ -41,6 +41,9 @@ import org.springframework.data.redis.connection.stream.PendingMessages;
 import org.springframework.data.redis.connection.stream.PendingMessagesSummary;
 import org.springframework.data.redis.connection.stream.ReadOffset;
 import org.springframework.data.redis.connection.stream.RecordId;
+import org.springframework.data.redis.connection.stream.StreamInfo.XInfoConsumer;
+import org.springframework.data.redis.connection.stream.StreamInfo.XInfoGroup;
+import org.springframework.data.redis.connection.stream.StreamInfo.XInfoStream;
 import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.connection.stream.StreamReadOptions;
 import org.springframework.data.redis.connection.stream.StreamRecords;
@@ -53,6 +56,7 @@ import org.springframework.util.StringUtils;
  *
  * @author Mark Paluch
  * @author Christoph Strobl
+ * @author Tugdual Grall
  * @since 2.2
  */
 public interface ReactiveStreamCommands {
@@ -193,11 +197,13 @@ public interface ReactiveStreamCommands {
 	class AddStreamRecord extends KeyCommand {
 
 		private final ByteBufferRecord record;
+		private final @Nullable Long maxlen;
 
-		private AddStreamRecord(ByteBufferRecord record) {
+		private AddStreamRecord(ByteBufferRecord record, @Nullable Long maxlen) {
 
 			super(record.getStream());
 			this.record = record;
+			this.maxlen = maxlen;
 		}
 
 		/**
@@ -210,7 +216,7 @@ public interface ReactiveStreamCommands {
 
 			Assert.notNull(record, "Record must not be null!");
 
-			return new AddStreamRecord(record);
+			return new AddStreamRecord(record, null);
 		}
 
 		/**
@@ -223,7 +229,7 @@ public interface ReactiveStreamCommands {
 
 			Assert.notNull(body, "Body must not be null!");
 
-			return new AddStreamRecord(StreamRecords.rawBuffer(body));
+			return new AddStreamRecord(StreamRecords.rawBuffer(body), null);
 		}
 
 		/**
@@ -233,7 +239,16 @@ public interface ReactiveStreamCommands {
 		 * @return a new {@link ReactiveGeoCommands.GeoAddCommand} with {@literal key} applied.
 		 */
 		public AddStreamRecord to(ByteBuffer key) {
-			return new AddStreamRecord(record.withStreamKey(key));
+			return new AddStreamRecord(record.withStreamKey(key), maxlen);
+		}
+
+		/**
+		 * Limit the size of the stream to the given maximum number of elements.
+		 *
+		 * @return new instance of {@link AddStreamRecord}.
+		 */
+		public AddStreamRecord maxlen(long maxlen) {
+			return new AddStreamRecord(record, maxlen);
 		}
 
 		/**
@@ -245,6 +260,25 @@ public interface ReactiveStreamCommands {
 
 		public ByteBufferRecord getRecord() {
 			return record;
+		}
+
+		/**
+		 * Limit the size of the stream to the given maximum number of elements.
+		 *
+		 * @return can be {@literal null}.
+		 * @since 2.3
+		 */
+		@Nullable
+		public Long getMaxlen() {
+			return maxlen;
+		}
+
+		/**
+		 * @return {@literal true} if {@literal MAXLEN} is set.
+		 * @since 2.3
+		 */
+		public boolean hasMaxlen() {
+			return maxlen != null && maxlen > 0;
 		}
 	}
 
@@ -1000,21 +1034,123 @@ public interface ReactiveStreamCommands {
 	 */
 	Flux<CommandResponse<ReadCommand, Flux<ByteBufferRecord>>> read(Publisher<ReadCommand> commands);
 
+	/**
+	 * @author Christoph Strobl
+	 * @since 2.3
+	 */
+	class XInfoCommand extends KeyCommand {
+
+		private final @Nullable String groupName;
+
+		private XInfoCommand(ByteBuffer key, @Nullable String groupName) {
+
+			super(key);
+			this.groupName = groupName;
+		}
+
+		public static XInfoCommand of(ByteBuffer key) {
+
+			Assert.notNull(key, "Key must not be null");
+
+			return new XInfoCommand(key, null);
+		}
+
+		public XInfoCommand consumersIn(String groupName) {
+			return new XInfoCommand(getKey(), groupName);
+		}
+
+		@Nullable
+		public String getGroupName() {
+			return groupName;
+		}
+	}
+
+	/**
+	 * Obtain general information about the stream stored at the specified {@literal key}.
+	 *
+	 * @param key the {@literal key} the stream is stored at.
+	 * @return a {@link Mono} emitting {@link XInfoStream} when ready.
+	 * @since 2.3
+	 */
+	default Mono<XInfoStream> xInfo(ByteBuffer key) {
+		return xInfo(Mono.just(XInfoCommand.of(key))).next().map(CommandResponse::getOutput);
+	}
+
+	/**
+	 * Obtain general information about the stream stored at the specified {@literal key}.
+	 *
+	 * @param commands must not be {@literal null}.
+	 * @return never {@literal null}.
+	 * @since 2.3
+	 */
+	Flux<CommandResponse<XInfoCommand, XInfoStream>> xInfo(Publisher<XInfoCommand> commands);
+
+	/**
+	 * Obtain general information about the stream stored at the specified {@literal key}.
+	 *
+	 * @param key the {@literal key} the stream is stored at.
+	 * @return a {@link Flux} emitting consumer group info one by one.
+	 * @since 2.3
+	 */
+	default Flux<XInfoGroup> xInfoGroups(ByteBuffer key) {
+		return xInfoGroups(Mono.just(XInfoCommand.of(key))).next().flatMapMany(CommandResponse::getOutput);
+	}
+
+	/**
+	 * Obtain general information about the stream stored at the specified {@literal key}.
+	 *
+	 * @param commands must not be {@literal null}.
+	 * @return never {@literal null}.
+	 * @since 2.3
+	 */
+	Flux<CommandResponse<XInfoCommand, Flux<XInfoGroup>>> xInfoGroups(Publisher<XInfoCommand> commands);
+
+	/**
+	 * Obtain information about every consumer in a specific {@literal consumer group} for the stream stored at the
+	 * specified {@literal key}.
+	 *
+	 * @param key the {@literal key} the stream is stored at.
+	 * @param groupName name of the {@literal consumer group}.
+	 * @return a {@link Flux} emitting consumer info one by one.
+	 * @since 2.3
+	 */
+	default Flux<XInfoConsumer> xInfoConsumers(ByteBuffer key, String groupName) {
+		return xInfoConsumers(Mono.just(XInfoCommand.of(key).consumersIn(groupName))).next()
+				.flatMapMany(CommandResponse::getOutput);
+	}
+
+	/**
+	 * Obtain information about every consumer in a specific {@literal consumer group} for the stream stored at the
+	 * specified {@literal key}.
+	 *
+	 * @param commands must not be {@literal null}.
+	 * @return never {@literal null}.
+	 * @since 2.3
+	 */
+	Flux<CommandResponse<XInfoCommand, Flux<XInfoConsumer>>> xInfoConsumers(Publisher<XInfoCommand> commands);
+
 	class GroupCommand extends KeyCommand {
 
 		private final GroupCommandAction action;
 		private final @Nullable String groupName;
 		private final @Nullable String consumerName;
 		private final @Nullable ReadOffset offset;
+		private final boolean mkStream;
 
 		public GroupCommand(@Nullable ByteBuffer key, GroupCommandAction action, @Nullable String groupName,
-				@Nullable String consumerName, @Nullable ReadOffset offset) {
+				@Nullable String consumerName, @Nullable ReadOffset offset, boolean mkStream) {
 
 			super(key);
 			this.action = action;
 			this.groupName = groupName;
 			this.consumerName = consumerName;
 			this.offset = offset;
+			this.mkStream = mkStream;
+		}
+
+		public GroupCommand(@Nullable ByteBuffer key, GroupCommandAction action, @Nullable String groupName,
+				@Nullable String consumerName, @Nullable ReadOffset offset) {
+			this(key, action, groupName, consumerName, offset, false);
 		}
 
 		public static GroupCommand createGroup(String group) {
@@ -1033,6 +1169,10 @@ public interface ReactiveStreamCommands {
 			return new GroupCommand(null, GroupCommandAction.DELETE_CONSUMER, consumer.getGroup(), consumer.getName(), null);
 		}
 
+		public GroupCommand makeStream(boolean mkStream) {
+			return new GroupCommand(getKey(), action, groupName, consumerName, offset,mkStream);
+		}
+
 		public GroupCommand at(ReadOffset offset) {
 			return new GroupCommand(getKey(), action, groupName, consumerName, offset);
 		}
@@ -1043,6 +1183,10 @@ public interface ReactiveStreamCommands {
 
 		public GroupCommand fromGroup(String groupName) {
 			return new GroupCommand(getKey(), action, groupName, consumerName, offset);
+		}
+
+		public boolean isMkStream() {
+			return this.mkStream;
 		}
 
 		@Nullable
@@ -1080,6 +1224,21 @@ public interface ReactiveStreamCommands {
 	default Mono<String> xGroupCreate(ByteBuffer key, String groupName, ReadOffset readOffset) {
 
 		return xGroup(Mono.just(GroupCommand.createGroup(groupName).forStream(key).at(readOffset))).next()
+				.map(CommandResponse::getOutput);
+	}
+
+	/**
+	 * Create a consumer group.
+	 *
+	 * @param key key the {@literal key} the stream is stored at.
+	 * @param groupName name of the consumer group to create.
+	 * @param readOffset the offset to start at.
+	 * @param mkStream if true the group will create the stream if needed (MKSTREAM)
+	 * @return the {@link Mono} emitting {@literal ok} if successful.
+	 * @since 2.3
+	 */
+	default Mono<String> xGroupCreate(ByteBuffer key, String groupName, ReadOffset readOffset, boolean mkStream) {
+		return xGroup(Mono.just(GroupCommand.createGroup(groupName).forStream(key).at(readOffset).makeStream(mkStream))).next()
 				.map(CommandResponse::getOutput);
 	}
 

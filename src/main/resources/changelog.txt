@@ -1,6 +1,45 @@
 Spring Data Redis Changelog
 ===========================
 
+Changes in version 2.3.0.RELEASE (2020-05-12)
+---------------------------------------------
+* DATAREDIS-1144 - Upgrade to Jedis 3.3.0.
+* DATAREDIS-1142 - "CROSSSLOT Keys in request don't hash to the same slot" error using Spring Data along with Spring Session while OAuth2 login process.
+* DATAREDIS-1139 - org.springframework.data.redis.core.RedisCommand Constant.
+* DATAREDIS-1138 - ReactiveStreamCommands hangs with indefinite block.
+* DATAREDIS-1137 - Remove Travis CI.
+* DATAREDIS-1135 - Release 2.3 GA (Neumann).
+* DATAREDIS-1042 - Add MKSTREAM support.
+
+
+Changes in version 2.3.0.RC2 (2020-04-28)
+-----------------------------------------
+* DATAREDIS-1132 - Upgrade to Netty 4.1.49.Final.
+* DATAREDIS-1128 - Improve test stability.
+* DATAREDIS-1127 - JedisConnectionFactory getSentinelConnection method fails if first sentinel host in the list of sentinel hosts is down/unreachable.
+* DATAREDIS-1124 - Release 2.3 RC2 (Neumann).
+* DATAREDIS-1122 - Add support for MAXLEN attribute of XADD.
+* DATAREDIS-1119 - Complete the Redis Stream Operations.
+* DATAREDIS-1118 - Provide support to change the RedisCacheWriter on the RedisCacheManager.RedisCacheManagerBuilder.
+* DATAREDIS-1112 - Upgrade to Lettuce 5.3.
+* DATAREDIS-1106 - Phantom key not removed when deleting an item.
+
+
+Changes in version 2.2.7.RELEASE (2020-04-28)
+---------------------------------------------
+* DATAREDIS-1132 - Upgrade to Netty 4.1.49.Final.
+* DATAREDIS-1127 - JedisConnectionFactory getSentinelConnection method fails if first sentinel host in the list of sentinel hosts is down/unreachable.
+* DATAREDIS-1121 - Add missing anchors.
+* DATAREDIS-1120 - Release 2.2.7 (Moore SR7).
+
+
+Changes in version 2.1.17.RELEASE (2020-04-28)
+----------------------------------------------
+* DATAREDIS-1127 - JedisConnectionFactory getSentinelConnection method fails if first sentinel host in the list of sentinel hosts is down/unreachable.
+* DATAREDIS-1121 - Add missing anchors.
+* DATAREDIS-1107 - Release 2.1.17 (Lovelace SR17).
+
+
 Changes in version 2.3.0.RC1 (2020-03-31)
 -----------------------------------------
 * DATAREDIS-1121 - Add missing anchors.
@@ -1937,6 +1976,10 @@ General
 * Various serialization strategies
 * Atomic counter support classes
 * JDK Collection implementations on top of Redis
+
+
+
+
 
 
 

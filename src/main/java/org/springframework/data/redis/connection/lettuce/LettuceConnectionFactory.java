@@ -30,7 +30,6 @@ import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.resource.ClientResources;
-import lombok.RequiredArgsConstructor;
 
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -90,6 +89,7 @@ import org.springframework.util.ClassUtils;
  * @author Balázs Németh
  * @author Ruben Cervilla
  * @author Luis De Bello
+ * @author Andrea Como
  */
 public class LettuceConnectionFactory
 		implements InitializingBean, DisposableBean, RedisConnectionFactory, ReactiveRedisConnectionFactory {
@@ -431,6 +431,10 @@ public class LettuceConnectionFactory
 	 */
 	@Override
 	public LettuceReactiveRedisConnection getReactiveConnection() {
+
+		if (isClusterAware()) {
+			return getReactiveClusterConnection();
+		}
 
 		return getShareNativeConnection()
 				? new LettuceReactiveRedisConnection(getSharedReactiveConnection(), reactiveConnectionProvider)
@@ -1176,7 +1180,6 @@ public class LettuceConnectionFactory
 	 * @author Christoph Strobl
 	 * @since 2.1
 	 */
-	@RequiredArgsConstructor
 	class SharedConnection<E> {
 
 		private final LettuceConnectionProvider connectionProvider;
@@ -1185,6 +1188,10 @@ public class LettuceConnectionFactory
 		private final Object connectionMonitor = new Object();
 
 		private @Nullable StatefulConnection<E, E> connection;
+
+		SharedConnection(LettuceConnectionProvider connectionProvider) {
+			this.connectionProvider = connectionProvider;
+		}
 
 		/**
 		 * Returns a valid Lettuce connection. Initializes and validates the connection if
