@@ -171,4 +171,21 @@ class RedisCacheManagerUnitTests {
 	void builderShouldRequireCacheWriter() {
 		assertThatIllegalStateException().isThrownBy(() -> RedisCacheManager.builder().build());
 	}
+
+	@Test // DATAREDIS-1082
+	void builderSetsStatisticsCollectorWhenEnabled() {
+
+		when(cacheWriter.withStatisticsCollector(any())).thenReturn(cacheWriter);
+		RedisCacheManager.builder(cacheWriter).enableStatistics().build();
+
+		verify(cacheWriter).withStatisticsCollector(any(DefaultCacheStatisticsCollector.class));
+	}
+
+	@Test // DATAREDIS-1082
+	void builderWontSetStatisticsCollectorByDefault() {
+
+		RedisCacheManager.builder(cacheWriter).build();
+
+		verify(cacheWriter, never()).withStatisticsCollector(any());
+	}
 }

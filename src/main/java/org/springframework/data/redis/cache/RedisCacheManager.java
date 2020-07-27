@@ -289,6 +289,7 @@ public class RedisCacheManager extends AbstractTransactionSupportingCacheManager
 	public static class RedisCacheManagerBuilder {
 
 		private @Nullable RedisCacheWriter cacheWriter;
+		private CacheStatisticsCollector statisticsCollector = CacheStatisticsCollector.none();
 		private RedisCacheConfiguration defaultCacheConfiguration = RedisCacheConfiguration.defaultCacheConfig();
 		private final Map<String, RedisCacheConfiguration> initialCaches = new LinkedHashMap<>();
 		private boolean enableTransactions;
@@ -457,15 +458,32 @@ public class RedisCacheManager extends AbstractTransactionSupportingCacheManager
 		}
 
 		/**
+		 * @return
+		 * @since 2.4
+		 */
+		public RedisCacheManagerBuilder enableStatistics() {
+
+			this.statisticsCollector = CacheStatisticsCollector.create();
+			return this;
+		}
+
+		/**
 		 * Create new instance of {@link RedisCacheManager} with configuration options applied.
 		 *
 		 * @return new instance of {@link RedisCacheManager}.
 		 */
 		public RedisCacheManager build() {
 
-			Assert.state(cacheWriter != null, "CacheWriter must not be null! You can provide one via 'RedisCacheManagerBuilder#cacheWriter(RedisCacheWriter)'.");
+			Assert.state(cacheWriter != null,
+					"CacheWriter must not be null! You can provide one via 'RedisCacheManagerBuilder#cacheWriter(RedisCacheWriter)'.");
 
-			RedisCacheManager cm = new RedisCacheManager(cacheWriter, defaultCacheConfiguration, initialCaches,
+			RedisCacheWriter theCacheWriter = cacheWriter;
+
+			if (!statisticsCollector.equals(CacheStatisticsCollector.none())) {
+				theCacheWriter = cacheWriter.withStatisticsCollector(statisticsCollector);
+			}
+
+			RedisCacheManager cm = new RedisCacheManager(theCacheWriter, defaultCacheConfiguration, initialCaches,
 					allowInFlightCacheCreation);
 
 			cm.setTransactionAware(enableTransactions);

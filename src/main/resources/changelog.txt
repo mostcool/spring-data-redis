@@ -1,6 +1,72 @@
 Spring Data Redis Changelog
 ===========================
 
+Changes in version 2.3.2.RELEASE (2020-07-22)
+---------------------------------------------
+* DATAREDIS-1181 - Upgrade to Lettuce 5.3.2.
+* DATAREDIS-1179 - ObjectHashMapper not able to resolve type alias.
+* DATAREDIS-1178 - Scan method on ReactiveSetOperations ignores ScanOptions parameter.
+* DATAREDIS-1177 - Upgrade to xstream 1.4.12.
+* DATAREDIS-1175 - Unable to read a List from a Redis Stream.
+* DATAREDIS-1173 - Close connection unsubscribes from all channels incorrectly using Lettuce.
+* DATAREDIS-1172 - StreamReceiverOptionsBuilder.hashValueSerializer mis-typed.
+* DATAREDIS-1168 - Release 2.3.2 (Neumann SR2).
+* DATAREDIS-1150 - Add reactive variant of RedisClusterCommands.
+
+
+Changes in version 2.2.9.RELEASE (2020-07-22)
+---------------------------------------------
+* DATAREDIS-1178 - Scan method on ReactiveSetOperations ignores ScanOptions parameter.
+* DATAREDIS-1177 - Upgrade to xstream 1.4.12.
+* DATAREDIS-1175 - Unable to read a List from a Redis Stream.
+* DATAREDIS-1173 - Close connection unsubscribes from all channels incorrectly using Lettuce.
+* DATAREDIS-1167 - Release 2.2.9 (Moore SR9).
+
+
+Changes in version 2.1.19.RELEASE (2020-07-22)
+----------------------------------------------
+* DATAREDIS-1178 - Scan method on ReactiveSetOperations ignores ScanOptions parameter.
+* DATAREDIS-1173 - Close connection unsubscribes from all channels incorrectly using Lettuce.
+* DATAREDIS-1166 - Release 2.1.19 (Lovelace SR19).
+
+
+Changes in version 2.4.0-M1 (2020-06-25)
+----------------------------------------
+* DATAREDIS-1165 - Use standard Spring code of conduct.
+* DATAREDIS-1164 - Upgrade to Lettuce 5.3.1.RELEASE.
+* DATAREDIS-1161 - DefaultReactiveHashOperations.readHashValue might return null.
+* DATAREDIS-1159 - RedisStaticMasterReplicaConfiguration.node(String hostName) should return RedisStaticMasterReplicaConfiguration.
+* DATAREDIS-1150 - Add reactive variant of RedisClusterCommands.
+* DATAREDIS-1147 - Release 2.4 M1 (2020.0.0).
+* DATAREDIS-1143 - Delombok source files.
+* DATAREDIS-911 - Spring data redis is not working for custom converter.
+
+
+Changes in version 2.3.1.RELEASE (2020-06-10)
+---------------------------------------------
+* DATAREDIS-1164 - Upgrade to Lettuce 5.3.1.RELEASE.
+* DATAREDIS-1161 - DefaultReactiveHashOperations.readHashValue might return null.
+* DATAREDIS-1159 - RedisStaticMasterReplicaConfiguration.node(String hostName) should return RedisStaticMasterReplicaConfiguration.
+* DATAREDIS-1146 - Release 2.3.1 (Neumann SR1).
+
+
+Changes in version 2.2.8.RELEASE (2020-06-10)
+---------------------------------------------
+* DATAREDIS-1161 - DefaultReactiveHashOperations.readHashValue might return null.
+* DATAREDIS-1142 - "CROSSSLOT Keys in request don't hash to the same slot" error using Spring Data along with Spring Session while OAuth2 login process.
+* DATAREDIS-1139 - org.springframework.data.redis.core.RedisCommand Constant.
+* DATAREDIS-1138 - ReactiveStreamCommands hangs with indefinite block.
+* DATAREDIS-1137 - Remove Travis CI.
+* DATAREDIS-1134 - Release 2.2.8 (Moore SR8).
+
+
+Changes in version 2.1.18.RELEASE (2020-06-10)
+----------------------------------------------
+* DATAREDIS-1161 - DefaultReactiveHashOperations.readHashValue might return null.
+* DATAREDIS-1137 - Remove Travis CI.
+* DATAREDIS-1133 - Release 2.1.18 (Lovelace SR18).
+
+
 Changes in version 2.3.0.RELEASE (2020-05-12)
 ---------------------------------------------
 * DATAREDIS-1144 - Upgrade to Jedis 3.3.0.
@@ -1976,6 +2042,12 @@ General
 * Various serialization strategies
 * Atomic counter support classes
 * JDK Collection implementations on top of Redis
+
+
+
+
+
+
 
 
 
