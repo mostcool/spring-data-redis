@@ -21,7 +21,7 @@ import io.lettuce.core.AbstractRedisClient;
 import io.lettuce.core.ClientOptions;
 import io.lettuce.core.ReadFrom;
 import io.lettuce.core.RedisClient;
-import io.lettuce.core.RedisException;
+import io.lettuce.core.RedisConnectionException;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.StatefulRedisConnection;
@@ -36,6 +36,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -54,10 +56,12 @@ import org.springframework.data.redis.connection.RedisConfiguration.ClusterConfi
 import org.springframework.data.redis.connection.RedisConfiguration.DomainSocketConfiguration;
 import org.springframework.data.redis.connection.RedisConfiguration.WithDatabaseIndex;
 import org.springframework.data.redis.connection.RedisConfiguration.WithPassword;
+import org.springframework.data.redis.connection.lettuce.LettuceConnection.*;
 import org.springframework.data.util.Optionals;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
+import org.springframework.util.StringUtils;
 
 /**
  * Connection factory creating <a href="https://github.com/mp911de/lettuce">Lettuce</a>-based connections.
@@ -277,8 +281,9 @@ public class LettuceConnectionFactory
 
 		this.client = createClient();
 
-		this.connectionProvider = createConnectionProvider(client, CODEC);
-		this.reactiveConnectionProvider = createConnectionProvider(client, LettuceReactiveRedisConnection.CODEC);
+		this.connectionProvider = new ExceptionTranslatingConnectionProvider(createConnectionProvider(client, CODEC));
+		this.reactiveConnectionProvider = new ExceptionTranslatingConnectionProvider(
+				createConnectionProvider(client, LettuceReactiveRedisConnection.CODEC));
 
 		if (isClusterAware()) {
 
@@ -783,6 +788,11 @@ public class LettuceConnectionFactory
 		this.getMutableConfiguration().setClientName(clientName);
 	}
 
+	@Nullable
+	private String getRedisUsername() {
+		return RedisConfiguration.getUsernameOrElse(configuration, standaloneConfig::getUsername);
+	}
+
 	/**
 	 * Returns the password used for authenticating with the Redis server.
 	 *
@@ -807,7 +817,7 @@ public class LettuceConnectionFactory
 	@Deprecated
 	public void setPassword(String password) {
 
-		if (RedisConfiguration.isPasswordAware(configuration)) {
+		if (RedisConfiguration.isAuthenticationAware(configuration)) {
 
 			((WithPassword) configuration).setPassword(password);
 			return;
@@ -1130,7 +1140,8 @@ public class LettuceConnectionFactory
 
 		RedisURI.Builder builder = RedisURI.Builder.redis(host, port);
 
-		getRedisPassword().toOptional().ifPresent(builder::withPassword);
+		applyAuthentication(builder);
+
 		clientConfiguration.getClientName().ifPresent(builder::withClientName);
 
 		builder.withDatabase(getDatabase());
@@ -1146,11 +1157,22 @@ public class LettuceConnectionFactory
 
 		RedisURI.Builder builder = RedisURI.Builder.socket(socketPath);
 
-		getRedisPassword().toOptional().ifPresent(builder::withPassword);
+		applyAuthentication(builder);
 		builder.withDatabase(getDatabase());
 		builder.withTimeout(clientConfiguration.getCommandTimeout());
 
 		return builder.build();
+	}
+
+	private void applyAuthentication(RedisURI.Builder builder) {
+
+		String username = getRedisUsername();
+		if (StringUtils.hasText(username)) {
+			// See https://github.com/lettuce-io/lettuce-core/issues/1404
+			builder.withAuthentication(username, new String(getRedisPassword().toOptional().orElse(new char[0])));
+		} else {
+			getRedisPassword().toOptional().ifPresent(builder::withPassword);
+		}
 	}
 
 	@Override
@@ -1222,12 +1244,7 @@ public class LettuceConnectionFactory
 		 * @return the connection.
 		 */
 		private StatefulConnection<E, E> getNativeConnection() {
-
-			try {
-				return connectionProvider.getConnection(StatefulConnection.class);
-			} catch (RedisException e) {
-				throw new RedisConnectionFailureException("Unable to connect to Redis", e);
-			}
+			return connectionProvider.getConnection(StatefulConnection.class);
 		}
 
 		/**
@@ -1417,5 +1434,125 @@ public class LettuceConnectionFactory
 		public Duration getShutdownQuietPeriod() {
 			return shutdownTimeout;
 		}
+	}
+
+	/**
+	 * {@link LettuceConnectionProvider} that translates connection exceptions into {@link RedisConnectionException}.
+	 */
+	private static class ExceptionTranslatingConnectionProvider
+			implements LettuceConnectionProvider, LettuceConnectionProvider.TargetAware, DisposableBean {
+
+		private final LettuceConnectionProvider delegate;
+
+		public ExceptionTranslatingConnectionProvider(LettuceConnectionProvider delegate) {
+			this.delegate = delegate;
+		}
+
+		/*
+		 * (non-Javadoc)
+		 * @see org.springframework.data.redis.connection.lettuce.LettuceConnectionProvider#getConnection(java.lang.Class)
+		 */
+		@Override
+		public <T extends StatefulConnection<?, ?>> T getConnection(Class<T> connectionType) {
+
+			try {
+				return delegate.getConnection(connectionType);
+			} catch (RuntimeException e) {
+				throw translateException(e);
+			}
+		}
+
+		/*
+		 * (non-Javadoc)
+		 * @see org.springframework.data.redis.connection.lettuce.LettuceConnectionProvider#getConnection(java.lang.Class, RedisURI)
+		 */
+		@Override
+		public <T extends StatefulConnection<?, ?>> T getConnection(Class<T> connectionType, RedisURI redisURI) {
+
+			try {
+				return ((TargetAware) delegate).getConnection(connectionType, redisURI);
+			} catch (RuntimeException e) {
+				throw translateException(e);
+			}
+		}
+
+		/*
+		 * (non-Javadoc)
+		 * @see org.springframework.data.redis.connection.lettuce.LettuceConnectionProvider#getConnectionAsync(java.lang.Class)
+		 */
+		@Override
+		public <T extends StatefulConnection<?, ?>> CompletionStage<T> getConnectionAsync(Class<T> connectionType) {
+
+			CompletableFuture<T> future = new CompletableFuture<>();
+
+			delegate.getConnectionAsync(connectionType).whenComplete((t, throwable) -> {
+
+				if (throwable != null) {
+					future.completeExceptionally(translateException(throwable));
+				} else {
+					future.complete(t);
+				}
+			});
+
+			return future;
+		}
+
+		/*
+		 * (non-Javadoc)
+		 * @see org.springframework.data.redis.connection.lettuce.LettuceConnectionProvider#getConnectionAsync(java.lang.Class, RedisURI)
+		 */
+		@Override
+		public <T extends StatefulConnection<?, ?>> CompletionStage<T> getConnectionAsync(Class<T> connectionType,
+				RedisURI redisURI) {
+
+			CompletableFuture<T> future = new CompletableFuture<>();
+
+			((TargetAware) delegate).getConnectionAsync(connectionType, redisURI).whenComplete((t, throwable) -> {
+
+				if (throwable != null) {
+					future.completeExceptionally(translateException(throwable));
+				} else {
+					future.complete(t);
+				}
+			});
+
+			return future;
+		}
+
+		/*
+		 * (non-Javadoc)
+		 * @see org.springframework.data.redis.connection.lettuce.LettuceConnectionProvider#release(io.lettuce.core.api.StatefulConnection)
+		 */
+		@Override
+		public void release(StatefulConnection<?, ?> connection) {
+			delegate.release(connection);
+		}
+
+		/*
+		 * (non-Javadoc)
+		 * @see org.springframework.data.redis.connection.lettuce.LettuceConnectionProvider#releaseAsync(io.lettuce.core.api.StatefulConnection)
+		 */
+		@Override
+		public CompletableFuture<Void> releaseAsync(StatefulConnection<?, ?> connection) {
+			return delegate.releaseAsync(connection);
+		}
+
+		/*
+		 * (non-Javadoc)
+		 * @see org.springframework.beans.factory.DisposableBean#destroy()
+		 */
+		@Override
+		public void destroy() throws Exception {
+
+			if (delegate instanceof DisposableBean) {
+				((DisposableBean) delegate).destroy();
+			}
+		}
+
+		private RuntimeException translateException(Throwable e) {
+			return e instanceof RedisConnectionFailureException ? (RedisConnectionFailureException) e
+					: new RedisConnectionFailureException("Unable to connect to Redis", e);
+		}
+
 	}
 }

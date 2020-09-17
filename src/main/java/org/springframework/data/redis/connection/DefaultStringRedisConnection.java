@@ -704,6 +704,15 @@ public class DefaultStringRedisConnection implements StringRedisConnection, Deco
 
 	/*
 	 * (non-Javadoc)
+	 * @see org.springframework.data.redis.connection.RedisListCommands#lPos(byte[], byte[], java.lang.Integer, java.lang.Integer)
+	 */
+	@Override
+	public List<Long> lPos(byte[] key, byte[] element, @Nullable Integer rank, @Nullable Integer count) {
+		return convertAndReturn(delegate.lPos(key, element, rank, count), identityConverter);
+	}
+
+	/*
+	 * (non-Javadoc)
 	 * @see org.springframework.data.redis.connection.RedisListCommands#lPush(byte[], byte[][])
 	 */
 	@Override
@@ -2136,6 +2145,15 @@ public class DefaultStringRedisConnection implements StringRedisConnection, Deco
 	@Override
 	public String lPop(String key) {
 		return convertAndReturn(delegate.lPop(serialize(key)), bytesToString);
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.springframework.data.redis.connection.StringRedisConnection#lPos(java.lang.String, java.lang.String, java.lang.Integer, java.lang.Integer)
+	 */
+	@Override
+	public List<Long> lPos(String key, String element, @Nullable Integer rank, @Nullable Integer count) {
+		return lPos(serialize(key), serialize(element), rank, count);
 	}
 
 	/*
@@ -3841,7 +3859,16 @@ public class DefaultStringRedisConnection implements StringRedisConnection, Deco
 	 */
 	@Override
 	public Long xTrim(String key, long count) {
-		return convertAndReturn(delegate.xTrim(serialize(key), count), identityConverter);
+		return xTrim(key, count, false);
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.springframework.data.redis.connection.StringRedisConnection#xTrim(java.lang.String, long, boolean)
+	 */
+	@Override
+	public Long xTrim(String key, long count, boolean approximateTrimming) {
+		return convertAndReturn(delegate.xTrim(serialize(key), count, approximateTrimming), identityConverter);
 	}
 
 	/*
@@ -4022,7 +4049,16 @@ public class DefaultStringRedisConnection implements StringRedisConnection, Deco
 	 */
 	@Override
 	public Long xTrim(byte[] key, long count) {
-		return delegate.xTrim(key, count);
+		return xTrim(key, count, false);
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.springframework.data.redis.connection.RedisStreamCommands#xTrim(byte[], long, boolean)
+	 */
+	@Override
+	public Long xTrim(byte[] key, long count, boolean approximateTrimming) {
+		return delegate.xTrim(key, count, approximateTrimming);
 	}
 
 	/**

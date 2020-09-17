@@ -24,6 +24,7 @@ import io.lettuce.core.cluster.api.sync.RedisClusterCommands;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Function;
 
 import org.springframework.dao.DataAccessException;
@@ -47,6 +48,7 @@ import org.springframework.util.Assert;
 /**
  * @author Mark Paluch
  * @author Tugdual Grall
+ * @author Dejan Jankov
  * @since 2.2
  */
 class LettuceStreamCommands implements RedisStreamCommands {
@@ -267,14 +269,16 @@ class LettuceStreamCommands implements RedisStreamCommands {
 			io.lettuce.core.Consumer<byte[]> lettuceConsumer = toConsumer(consumer);
 
 			if (isPipelined()) {
-				pipeline(connection.newLettuceResult(getAsyncConnection().xgroupDelconsumer(key, lettuceConsumer)));
+				pipeline(connection.newLettuceResult(getAsyncConnection().xgroupDelconsumer(key, lettuceConsumer),
+						Objects::nonNull));
 				return null;
 			}
 			if (isQueueing()) {
-				transaction(connection.newLettuceResult(getAsyncConnection().xgroupDelconsumer(key, lettuceConsumer)));
+				transaction(connection.newLettuceResult(getAsyncConnection().xgroupDelconsumer(key, lettuceConsumer),
+						Objects::nonNull));
 				return null;
 			}
-			return getConnection().xgroupDelconsumer(key, lettuceConsumer);
+			return Objects.nonNull(getConnection().xgroupDelconsumer(key, lettuceConsumer));
 		} catch (Exception ex) {
 			throw convertLettuceAccessException(ex);
 		}
@@ -441,7 +445,7 @@ class LettuceStreamCommands implements RedisStreamCommands {
 	public PendingMessages xPending(byte[] key, String groupName, XPendingOptions options) {
 
 		byte[] group = LettuceConverters.toBytes(groupName);
-		io.lettuce.core.Range<String> range = RangeConverter.toRangeWithDefault(options.getRange(), "-", "+");
+		io.lettuce.core.Range<String> range = RangeConverter.toRangeWithDefault(options.getRange(), "-", "+", Function.identity());
 		io.lettuce.core.Limit limit = options.isLimited() ? io.lettuce.core.Limit.from(options.getCount())
 				: io.lettuce.core.Limit.unlimited();
 
@@ -632,7 +636,7 @@ class LettuceStreamCommands implements RedisStreamCommands {
 		Assert.notNull(range, "Range must not be null!");
 		Assert.notNull(limit, "Limit must not be null!");
 
-		io.lettuce.core.Range<String> lettuceRange = RangeConverter.toRange(range);
+		io.lettuce.core.Range<String> lettuceRange = RangeConverter.toRange(range, Function.identity());
 		io.lettuce.core.Limit lettuceLimit = LettuceConverters.toLimit(limit);
 		try {
 			if (isPipelined()) {
@@ -658,19 +662,27 @@ class LettuceStreamCommands implements RedisStreamCommands {
 	 */
 	@Override
 	public Long xTrim(byte[] key, long count) {
+		return xTrim(key, count, false);
+	}
 
+	/*
+	 * (non-Javadoc)
+	 * @see org.springframework.data.redis.connection.RedisStreamCommands#xTrim(byte[], long, boolean)
+	 */
+	@Override
+	public Long xTrim(byte[] key, long count, boolean approximateTrimming) {
 		Assert.notNull(key, "Key must not be null!");
 
 		try {
 			if (isPipelined()) {
-				pipeline(connection.newLettuceResult(getAsyncConnection().xtrim(key, count)));
+				pipeline(connection.newLettuceResult(getAsyncConnection().xtrim(key, approximateTrimming, count)));
 				return null;
 			}
 			if (isQueueing()) {
-				transaction(connection.newLettuceResult(getAsyncConnection().xtrim(key, count)));
+				transaction(connection.newLettuceResult(getAsyncConnection().xtrim(key, approximateTrimming, count)));
 				return null;
 			}
-			return getConnection().xtrim(key, count);
+			return getConnection().xtrim(key, approximateTrimming, count);
 		} catch (Exception ex) {
 			throw convertLettuceAccessException(ex);
 		}

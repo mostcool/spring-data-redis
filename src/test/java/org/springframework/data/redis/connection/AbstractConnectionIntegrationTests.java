@@ -99,6 +99,7 @@ import org.springframework.test.annotation.ProfileValueSourceConfiguration;
  * @author Thomas Darimont
  * @author Mark Paluch
  * @author Tugdual Grall
+ * @author Dejan Jankov
  */
 @ProfileValueSourceConfiguration(RedisTestProfileValueSource.class)
 public abstract class AbstractConnectionIntegrationTests {
@@ -1476,6 +1477,72 @@ public abstract class AbstractConnectionIntegrationTests {
 		actual.add(connection.lPush("testlist", "bar", "baz"));
 		actual.add(connection.lRange("testlist", 0, -1));
 		verifyResults(Arrays.asList(new Object[] { 2l, Arrays.asList(new String[] { "baz", "bar" }) }));
+	}
+
+	@Test // DATAREDIS-1196
+	@IfProfileValue(name = "redisVersion", value = "6.0.6+")
+	@WithRedisDriver({ RedisDriver.LETTUCE })
+	public void lPos() {
+
+		actual.add(connection.rPush("mylist", "a", "b", "c", "1", "2", "3", "c", "c"));
+		actual.add(connection.lPos("mylist", "c"));
+
+		assertThat((Long) getResults().get(1)).isEqualTo(2);
+	}
+
+	@Test // DATAREDIS-1196
+	@IfProfileValue(name = "redisVersion", value = "6.0.6+")
+	@WithRedisDriver({ RedisDriver.LETTUCE })
+	public void lPosRank() {
+
+		actual.add(connection.rPush("mylist", "a", "b", "c", "1", "2", "3", "c", "c"));
+		actual.add(connection.lPos("mylist", "c", 2, null));
+
+		assertThat((List<Long>) getResults().get(1)).containsExactly(6L);
+	}
+
+	@Test // DATAREDIS-1196
+	@IfProfileValue(name = "redisVersion", value = "6.0.6+")
+	@WithRedisDriver({ RedisDriver.LETTUCE })
+	public void lPosNegativeRank() {
+
+		actual.add(connection.rPush("mylist", "a", "b", "c", "1", "2", "3", "c", "c"));
+		actual.add(connection.lPos("mylist", "c", -1, null));
+
+		assertThat((List<Long>) getResults().get(1)).containsExactly(7L);
+	}
+
+	@Test // DATAREDIS-1196
+	@IfProfileValue(name = "redisVersion", value = "6.0.6+")
+	@WithRedisDriver({ RedisDriver.LETTUCE })
+	public void lPosCount() {
+
+		actual.add(connection.rPush("mylist", "a", "b", "c", "1", "2", "3", "c", "c"));
+		actual.add(connection.lPos("mylist", "c", null, 2));
+
+		assertThat((List<Long>) getResults().get(1)).containsExactly(2L, 6L);
+	}
+
+	@Test // DATAREDIS-1196
+	@IfProfileValue(name = "redisVersion", value = "6.0.6+")
+	@WithRedisDriver({ RedisDriver.LETTUCE })
+	public void lPosRankCount() {
+
+		actual.add(connection.rPush("mylist", "a", "b", "c", "1", "2", "3", "c", "c"));
+		actual.add(connection.lPos("mylist", "c", -1, 2));
+
+		assertThat((List<Long>) getResults().get(1)).containsExactly(7L, 6L);
+	}
+
+	@Test // DATAREDIS-1196
+	@IfProfileValue(name = "redisVersion", value = "6.0.6+")
+	@WithRedisDriver({ RedisDriver.LETTUCE })
+	public void lPosCountZero() {
+
+		actual.add(connection.rPush("mylist", "a", "b", "c", "1", "2", "3", "c", "c"));
+		actual.add(connection.lPos("mylist", "c", null, 0));
+
+		assertThat((List<Long>) getResults().get(1)).containsExactly(2L, 6L, 7L);
 	}
 
 	// Set operations
@@ -3125,6 +3192,28 @@ public abstract class AbstractConnectionIntegrationTests {
 		assertThat(messages.get(1).getValue()).isEqualTo(Collections.singletonMap(KEY_2, VALUE_2));
 	}
 
+	@Test // DATAREDIS-1207
+	@IfProfileValue(name = "redisVersion", value = "5.0")
+	@WithRedisDriver({ RedisDriver.LETTUCE })
+	public void xRevRangeShouldWorkWithBoundedRange() {
+
+		actual.add(connection.xAdd(KEY_1, Collections.singletonMap(KEY_2, VALUE_2)));
+		actual.add(connection.xAdd(KEY_1, Collections.singletonMap(KEY_3, VALUE_3)));
+		actual.add(connection.xRevRange(KEY_1, org.springframework.data.domain.Range.closed("0-0", "+")));
+
+		List<Object> results = getResults();
+		assertThat(results).hasSize(3);
+
+		List<MapRecord<String, String, String>> messages = (List) results.get(2);
+		assertThat(messages).hasSize(2);
+
+		assertThat(messages.get(0).getStream()).isEqualTo(KEY_1);
+		assertThat(messages.get(0).getValue()).isEqualTo(Collections.singletonMap(KEY_3, VALUE_3));
+
+		assertThat(messages.get(1).getStream()).isEqualTo(KEY_1);
+		assertThat(messages.get(1).getValue()).isEqualTo(Collections.singletonMap(KEY_2, VALUE_2));
+	}
+
 	@Test // DATAREDIS-1084
 	@IfProfileValue(name = "redisVersion", value = "5.0")
 	@WithRedisDriver({ RedisDriver.LETTUCE })
@@ -3177,6 +3266,29 @@ public abstract class AbstractConnectionIntegrationTests {
 				StreamOffset.create(KEY_1, ReadOffset.lastConsumed())));
 
 		actual.add(connection.xPending(KEY_1, "my-group", org.springframework.data.domain.Range.open("-", "+"), 10L));
+
+		List<Object> results = getResults();
+		assertThat(results).hasSize(4);
+		PendingMessages pending = (PendingMessages) results.get(3);
+
+		assertThat(pending.size()).isOne();
+		assertThat(pending.get(0).getConsumerName()).isEqualTo("my-consumer");
+		assertThat(pending.get(0).getGroupName()).isEqualTo("my-group");
+		assertThat(pending.get(0).getTotalDeliveryCount()).isOne();
+		assertThat(pending.get(0).getIdAsString()).isNotNull();
+	}
+
+	@Test // DATAREDIS-1207
+	@IfProfileValue(name = "redisVersion", value = "5.0")
+	@WithRedisDriver({ RedisDriver.LETTUCE })
+	public void xPendingShouldWorkWithBoundedRange() {
+
+		actual.add(connection.xAdd(KEY_1, Collections.singletonMap(KEY_2, VALUE_2)));
+		actual.add(connection.xGroupCreate(KEY_1, ReadOffset.from("0"), "my-group"));
+		actual.add(connection.xReadGroupAsString(Consumer.from("my-group", "my-consumer"),
+				StreamOffset.create(KEY_1, ReadOffset.lastConsumed())));
+
+		actual.add(connection.xPending(KEY_1, "my-group", org.springframework.data.domain.Range.open("0-0", "+"), 10L));
 
 		List<Object> results = getResults();
 		assertThat(results).hasSize(4);

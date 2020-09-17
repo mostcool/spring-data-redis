@@ -20,14 +20,15 @@ import java.util.Collections;
 import java.util.List;
 
 import org.springframework.data.redis.connection.RedisConfiguration.StaticMasterReplicaConfiguration;
+import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 
 /**
  * Configuration class used for setting up {@link RedisConnection} via {@link RedisConnectionFactory} using the provided
  * Master / Replica configuration to nodes know to not change address. Eg. when connecting to
  * <a href="https://aws.amazon.com/documentation/elasticache/">AWS ElastiCache with Read Replicas</a>. <br/>
- * Note: Redis is undergoing a nomenclature change where the term replica is used synonymously to slave.
- * Please also note that a Master/Replica connection cannot be used for Pub/Sub operations.
+ * Note: Redis is undergoing a nomenclature change where the term replica is used synonymously to slave. Please also
+ * note that a Master/Replica connection cannot be used for Pub/Sub operations.
  *
  * @author Mark Paluch
  * @author Christoph Strobl
@@ -40,6 +41,7 @@ public class RedisStaticMasterReplicaConfiguration implements RedisConfiguration
 
 	private List<RedisStandaloneConfiguration> nodes = new ArrayList<>();
 	private int database;
+	private @Nullable String username = null;
 	private RedisPassword password = RedisPassword.none();
 
 	/**
@@ -128,6 +130,25 @@ public class RedisStaticMasterReplicaConfiguration implements RedisConfiguration
 
 		this.database = index;
 		this.nodes.forEach(it -> it.setDatabase(database));
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.springframework.data.redis.connection.RedisConfiguration.WithAuthentication#setUsername(String)
+	 */
+	@Override
+	public void setUsername(@Nullable String username) {
+		this.username = username;
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.springframework.data.redis.connection.RedisConfiguration.WithAuthentication#getUsername()
+	 */
+	@Nullable
+	@Override
+	public String getUsername() {
+		return this.username;
 	}
 
 	/*
