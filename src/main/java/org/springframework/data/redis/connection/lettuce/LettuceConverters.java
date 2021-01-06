@@ -82,6 +82,7 @@ import org.springframework.util.StringUtils;
  * @author Thomas Darimont
  * @author Mark Paluch
  * @author Ninad Divadkar
+ * @author dengliming
  */
 abstract public class LettuceConverters extends Converters {
 
@@ -769,15 +770,21 @@ abstract public class LettuceConverters extends Converters {
 	public static SetArgs toSetArgs(@Nullable Expiration expiration, @Nullable SetOption option) {
 
 		SetArgs args = new SetArgs();
-		if (expiration != null && !expiration.isPersistent()) {
 
-			switch (expiration.getTimeUnit()) {
-				case SECONDS:
-					args.ex(expiration.getExpirationTime());
-					break;
-				default:
-					args.px(expiration.getConverted(TimeUnit.MILLISECONDS));
-					break;
+		if (expiration != null) {
+
+			if (expiration.isKeepTtl()) {
+				args.keepttl();
+			} else if (!expiration.isPersistent()) {
+
+				switch (expiration.getTimeUnit()) {
+					case SECONDS:
+						args.ex(expiration.getExpirationTime());
+						break;
+					default:
+						args.px(expiration.getConverted(TimeUnit.MILLISECONDS));
+						break;
+				}
 			}
 		}
 

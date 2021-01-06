@@ -1,6 +1,101 @@
 Spring Data Redis Changelog
 ===========================
 
+Changes in version 2.4.2 (2020-12-09)
+-------------------------------------
+* DATAREDIS-1257 - Fix converter documentation for repository support.
+* DATAREDIS-1254 - Upgrade to Xstream 1.4.14.
+* DATAREDIS-1249 - Release 2.4.2 (2020.0.2).
+* DATAREDIS-1230 - Reactive StreamReceiver fails on serialization exception and does not process subsequent messages.
+* DATAREDIS-891 - Enabling transactional support in RedisTemplate binds connection to TransactionSynchronizationManager even without transaction.
+
+
+Changes in version 2.5.0-M1 (2020-12-09)
+----------------------------------------
+* DATAREDIS-1257 - Fix converter documentation for repository support.
+* DATAREDIS-1254 - Upgrade to Xstream 1.4.14.
+* DATAREDIS-1248 - Use fresh JedisConnectionFactory in PubSubTests.
+* DATAREDIS-1246 - DefaultStreamReceiver.StreamSubscription's onStreamMessage() uses unimplemented method.
+* DATAREDIS-1245 - RedisScript<ArrayList> return type interpreted as VALUE.
+* DATAREDIS-1242 - Release 2.5 M1 (2021.0.0).
+* DATAREDIS-1230 - Reactive StreamReceiver fails on serialization exception and does not process subsequent messages.
+* DATAREDIS-891 - Enabling transactional support in RedisTemplate binds connection to TransactionSynchronizationManager even without transaction.
+
+
+Changes in version 2.3.6.RELEASE (2020-12-09)
+---------------------------------------------
+* DATAREDIS-1257 - Fix converter documentation for repository support.
+* DATAREDIS-1254 - Upgrade to Xstream 1.4.14.
+* DATAREDIS-1246 - DefaultStreamReceiver.StreamSubscription's onStreamMessage() uses unimplemented method.
+* DATAREDIS-1245 - RedisScript<ArrayList> return type interpreted as VALUE.
+* DATAREDIS-1240 - Release 2.3.6 (Neumann SR6).
+
+
+Changes in version 2.2.12.RELEASE (2020-12-09)
+----------------------------------------------
+* DATAREDIS-1257 - Fix converter documentation for repository support.
+* DATAREDIS-1254 - Upgrade to Xstream 1.4.14.
+* DATAREDIS-1246 - DefaultStreamReceiver.StreamSubscription's onStreamMessage() uses unimplemented method.
+* DATAREDIS-1245 - RedisScript<ArrayList> return type interpreted as VALUE.
+* DATAREDIS-1239 - Release 2.2.12 (Moore SR12).
+
+
+Changes in version 2.4.1 (2020-11-11)
+-------------------------------------
+* DATAREDIS-1248 - Use fresh JedisConnectionFactory in PubSubTests.
+* DATAREDIS-1246 - DefaultStreamReceiver.StreamSubscription's onStreamMessage() uses unimplemented method.
+* DATAREDIS-1245 - RedisScript<ArrayList> return type interpreted as VALUE.
+* DATAREDIS-1241 - Release 2.4.1 (2020.0.1).
+
+
+Changes in version 2.4.0 (2020-10-28)
+-------------------------------------
+* DATAREDIS-1237 - Upgrade to Lettuce 6.0.1.RELEASE.
+* DATAREDIS-1234 - LPOS command result not consistent.
+* DATAREDIS-1233 - Migrate tests to JUnit 5.
+* DATAREDIS-1232 - Release 2.4 GA (2020.0.0).
+* DATAREDIS-1212 - Reduce memory allocation when retrieving message content.
+
+
+Changes in version 2.3.5.RELEASE (2020-10-28)
+---------------------------------------------
+* DATAREDIS-1238 - Upgrade to Lettuce 5.3.5.RELEASE.
+* DATAREDIS-1231 - Use Jedis command routing if multiple BRPOP keys map to a single slot.
+* DATAREDIS-1225 - Fix typos in reference documentation.
+* DATAREDIS-1222 - DefaultStringRedisConnection#zRangeByLex(String, Range, Limit) ignores the limit parameter.
+* DATAREDIS-1218 - Release 2.3.5 (Neumann SR5).
+* DATAREDIS-1214 - Get a NullPointerException when using the geodist command of redis.
+* DATAREDIS-1212 - Reduce memory allocation when retrieving message content.
+
+
+Changes in version 2.2.11.RELEASE (2020-10-28)
+----------------------------------------------
+* DATAREDIS-1231 - Use Jedis command routing if multiple BRPOP keys map to a single slot.
+* DATAREDIS-1225 - Fix typos in reference documentation.
+* DATAREDIS-1222 - DefaultStringRedisConnection#zRangeByLex(String, Range, Limit) ignores the limit parameter.
+* DATAREDIS-1217 - Release 2.2.11 (Moore SR11).
+* DATAREDIS-1214 - Get a NullPointerException when using the geodist command of redis.
+* DATAREDIS-1212 - Reduce memory allocation when retrieving message content.
+
+
+Changes in version 2.1.21.RELEASE (2020-10-28)
+----------------------------------------------
+* DATAREDIS-1236 - Release 2.1.21 (Lovelace SR21).
+
+
+Changes in version 2.4.0-RC2 (2020-10-14)
+-----------------------------------------
+* DATAREDIS-1231 - Use Jedis command routing if multiple BRPOP keys map to a single slot.
+* DATAREDIS-1226 - Add support for xClaimJustId.
+* DATAREDIS-1225 - Fix typos in reference documentation.
+* DATAREDIS-1223 - Upgrade to Lettuce 6.0 GA.
+* DATAREDIS-1222 - DefaultStringRedisConnection#zRangeByLex(String, Range, Limit) ignores the limit parameter.
+* DATAREDIS-1219 - Release 2.4 RC2 (2020.0.0).
+* DATAREDIS-1214 - Get a NullPointerException when using the geodist command of redis.
+* DATAREDIS-1103 - Support new KEEPTTL option of the SET operation.
+* DATAREDIS-729 - Support reverseRangeByLex and lexCount commands.
+
+
 Changes in version 2.4.0-RC1 (2020-09-16)
 -----------------------------------------
 * DATAREDIS-1215 - Upgrade to Lettuce 6.0-RC2.
@@ -2109,6 +2204,16 @@ General
 * Various serialization strategies
 * Atomic counter support classes
 * JDK Collection implementations on top of Redis
+
+
+
+
+
+
+
+
+
+
 
 
 

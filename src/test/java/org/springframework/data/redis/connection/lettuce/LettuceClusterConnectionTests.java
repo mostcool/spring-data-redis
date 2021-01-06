@@ -25,22 +25,21 @@ import static org.springframework.data.redis.connection.RedisGeoCommands.Distanc
 import static org.springframework.data.redis.connection.RedisGeoCommands.GeoRadiusCommandArgs.*;
 import static org.springframework.data.redis.core.ScanOptions.*;
 
-import io.lettuce.core.RedisURI.Builder;
-import io.lettuce.core.api.sync.RedisHLLCommands;
 import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.cluster.api.sync.RedisAdvancedClusterCommands;
 import io.lettuce.core.codec.ByteArrayCodec;
 
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.Rule;
-import org.junit.Test;
+import org.assertj.core.data.Offset;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.Range.Bound;
@@ -61,74 +60,98 @@ import org.springframework.data.redis.connection.jedis.JedisConverters;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.types.Expiration;
+import org.springframework.data.redis.test.condition.EnabledOnRedisClusterAvailable;
+import org.springframework.data.redis.test.extension.LettuceExtension;
+import org.springframework.data.redis.test.extension.LettuceTestClientResources;
 import org.springframework.data.redis.test.util.HexStringUtils;
-import org.springframework.data.redis.test.util.MinimumRedisVersionRule;
-import org.springframework.data.redis.test.util.RedisClusterRule;
-import org.springframework.test.annotation.IfProfileValue;
 
 /**
  * @author Christoph Strobl
  * @author Mark Paluch
  */
+@SuppressWarnings("deprecation")
+@EnabledOnRedisClusterAvailable
+@ExtendWith(LettuceExtension.class)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 
-	static final byte[] KEY_1_BYTES = LettuceConverters.toBytes(KEY_1);
-	static final byte[] KEY_2_BYTES = LettuceConverters.toBytes(KEY_2);
-	static final byte[] KEY_3_BYTES = LettuceConverters.toBytes(KEY_3);
+	private static final byte[] KEY_1_BYTES = LettuceConverters.toBytes(KEY_1);
+	private static final byte[] KEY_2_BYTES = LettuceConverters.toBytes(KEY_2);
+	private static final byte[] KEY_3_BYTES = LettuceConverters.toBytes(KEY_3);
 
-	static final byte[] SAME_SLOT_KEY_1_BYTES = LettuceConverters.toBytes(SAME_SLOT_KEY_1);
-	static final byte[] SAME_SLOT_KEY_2_BYTES = LettuceConverters.toBytes(SAME_SLOT_KEY_2);
-	static final byte[] SAME_SLOT_KEY_3_BYTES = LettuceConverters.toBytes(SAME_SLOT_KEY_3);
+	private static final byte[] SAME_SLOT_KEY_1_BYTES = LettuceConverters.toBytes(SAME_SLOT_KEY_1);
+	private static final byte[] SAME_SLOT_KEY_2_BYTES = LettuceConverters.toBytes(SAME_SLOT_KEY_2);
+	private static final byte[] SAME_SLOT_KEY_3_BYTES = LettuceConverters.toBytes(SAME_SLOT_KEY_3);
 
-	static final byte[] VALUE_1_BYTES = LettuceConverters.toBytes(VALUE_1);
-	static final byte[] VALUE_2_BYTES = LettuceConverters.toBytes(VALUE_2);
-	static final byte[] VALUE_3_BYTES = LettuceConverters.toBytes(VALUE_3);
+	private static final byte[] VALUE_1_BYTES = LettuceConverters.toBytes(VALUE_1);
+	private static final byte[] VALUE_2_BYTES = LettuceConverters.toBytes(VALUE_2);
+	private static final byte[] VALUE_3_BYTES = LettuceConverters.toBytes(VALUE_3);
 
-	static final GeoLocation<String> ARIGENTO = new GeoLocation<>("arigento", POINT_ARIGENTO);
-	static final GeoLocation<String> CATANIA = new GeoLocation<>("catania", POINT_CATANIA);
-	static final GeoLocation<String> PALERMO = new GeoLocation<>("palermo", POINT_PALERMO);
+	private static final GeoLocation<String> ARIGENTO = new GeoLocation<>("arigento", POINT_ARIGENTO);
+	private static final GeoLocation<String> CATANIA = new GeoLocation<>("catania", POINT_CATANIA);
+	private static final GeoLocation<String> PALERMO = new GeoLocation<>("palermo", POINT_PALERMO);
 
-	static final GeoLocation<byte[]> ARIGENTO_BYTES = new GeoLocation<>("arigento".getBytes(Charset.forName("UTF-8")),
+	private static final GeoLocation<byte[]> ARIGENTO_BYTES = new GeoLocation<>(
+			"arigento".getBytes(StandardCharsets.UTF_8),
 			POINT_ARIGENTO);
-	static final GeoLocation<byte[]> CATANIA_BYTES = new GeoLocation<>("catania".getBytes(Charset.forName("UTF-8")),
+	private static final GeoLocation<byte[]> CATANIA_BYTES = new GeoLocation<>(
+			"catania".getBytes(StandardCharsets.UTF_8),
 			POINT_CATANIA);
-	static final GeoLocation<byte[]> PALERMO_BYTES = new GeoLocation<>("palermo".getBytes(Charset.forName("UTF-8")),
+	private static final GeoLocation<byte[]> PALERMO_BYTES = new GeoLocation<>(
+			"palermo".getBytes(StandardCharsets.UTF_8),
 			POINT_PALERMO);
 
-	RedisClusterClient client;
-	RedisAdvancedClusterCommands<String, String> nativeConnection;
-	RedisAdvancedClusterCommands<byte[], byte[]> binaryConnection;
-	LettuceClusterConnection clusterConnection;
+	private final RedisClusterClient client;
 
-	public static @ClassRule RedisClusterRule clusterAvailable = new RedisClusterRule();
+	private static RedisAdvancedClusterCommands<String, String> nativeConnection;
+	private static RedisAdvancedClusterCommands<byte[], byte[]> binaryConnection;
+	private static LettuceClusterConnection clusterConnection;
 
-	/**
-	 * Check for specific Redis Versions
-	 */
-	public @Rule MinimumRedisVersionRule version = new MinimumRedisVersionRule();
-
-	@Before
-	public void setUp() {
-
-		client = RedisClusterClient.create(LettuceTestClientResources.getSharedClientResources(),
-				Builder.redis(CLUSTER_HOST, MASTER_NODE_1_PORT).withTimeout(Duration.ofMillis(500)).build());
+	public LettuceClusterConnectionTests(RedisClusterClient client) {
+		this.client = client;
 		nativeConnection = client.connect().sync();
 		binaryConnection = client.connect(ByteArrayCodec.INSTANCE).sync();
 		clusterConnection = new LettuceClusterConnection(client);
 	}
 
-	@After
-	public void tearDown() throws InterruptedException {
+	@BeforeEach
+	void setUp() {
+		nativeConnection.getStatefulConnection().sync().flushallAsync();
+	}
 
-		clusterConnection.serverCommands().flushDb();
-		nativeConnection.getStatefulConnection().close();
-		binaryConnection.getStatefulConnection().close();
-		clusterConnection.close();
-		client.shutdown(0, 0, TimeUnit.MILLISECONDS);
+	@AfterAll
+	static void afterAll() {
+
+		if (nativeConnection != null) {
+			nativeConnection.getStatefulConnection().closeAsync();
+			nativeConnection = null;
+		}
+
+		if (binaryConnection != null) {
+			binaryConnection.getStatefulConnection().closeAsync();
+			binaryConnection = null;
+		}
+
+		if (clusterConnection != null) {
+			clusterConnection.close();
+			clusterConnection = null;
+		}
+	}
+
+	private static LettuceConnectionFactory createConnectionFactory() {
+		LettucePoolingClientConfiguration clientConfiguration = LettucePoolingClientConfiguration.builder() //
+				.clientResources(LettuceTestClientResources.getSharedClientResources()) //
+				.shutdownTimeout(Duration.ZERO) //
+				.build();
+
+		RedisClusterConfiguration clusterConfiguration = new RedisClusterConfiguration();
+		clusterConfiguration.addClusterNode(ClusterTestVariables.CLUSTER_NODE_1);
+
+		return new LettuceConnectionFactory(clusterConfiguration, clientConfiguration);
 	}
 
 	@Test // DATAREDIS-775
-	public void shouldCreateConnectionWithPooling() {
+	void shouldCreateConnectionWithPooling() {
 
 		LettuceConnectionFactory factory = createConnectionFactory();
 		factory.afterPropertiesSet();
@@ -142,7 +165,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-775
-	public void shouldCreateClusterConnectionWithPooling() {
+	void shouldCreateClusterConnectionWithPooling() {
 
 		LettuceConnectionFactory factory = createConnectionFactory();
 		factory.afterPropertiesSet();
@@ -155,18 +178,6 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 		factory.destroy();
 	}
 
-	private static LettuceConnectionFactory createConnectionFactory() {
-
-		LettucePoolingClientConfiguration clientConfiguration = LettucePoolingClientConfiguration.builder() //
-				.clientResources(LettuceTestClientResources.getSharedClientResources()) //
-				.shutdownTimeout(Duration.ZERO) //
-				.build();
-
-		RedisClusterConfiguration clusterConfiguration = new RedisClusterConfiguration();
-		clusterConfiguration.addClusterNode(ClusterTestVariables.CLUSTER_NODE_1);
-
-		return new LettuceConnectionFactory(clusterConfiguration, clientConfiguration);
-	}
 
 	@Test // DATAREDIS-315
 	public void appendShouldAddValueCorrectly() {
@@ -223,7 +234,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-315
-	public void bitOpShouldWorkCorrectly() {
+	void bitOpShouldWorkCorrectly() {
 
 		nativeConnection.set(SAME_SLOT_KEY_1, "foo");
 		nativeConnection.set(SAME_SLOT_KEY_2, "bar");
@@ -234,39 +245,39 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-315
-	public void blPopShouldPopElementCorectly() {
+	public void blPopShouldPopElementCorrectly() {
 
 		nativeConnection.lpush(KEY_1, VALUE_1, VALUE_2);
 		nativeConnection.lpush(KEY_2, VALUE_3);
 
-		assertThat(clusterConnection.bLPop(100, KEY_1_BYTES, KEY_2_BYTES).size()).isEqualTo(2);
+		assertThat(clusterConnection.bLPop(100, KEY_1_BYTES, KEY_2_BYTES)).hasSize(2);
 	}
 
 	@Test // DATAREDIS-315
-	public void blPopShouldPopElementCorectlyWhenKeyOnSameSlot() {
+	public void blPopShouldPopElementCorrectlyWhenKeyOnSameSlot() {
 
 		nativeConnection.lpush(SAME_SLOT_KEY_1, VALUE_1, VALUE_2);
 		nativeConnection.lpush(SAME_SLOT_KEY_2, VALUE_3);
 
-		assertThat(clusterConnection.bLPop(100, SAME_SLOT_KEY_1_BYTES, SAME_SLOT_KEY_2_BYTES).size()).isEqualTo(2);
+		assertThat(clusterConnection.bLPop(100, SAME_SLOT_KEY_1_BYTES, SAME_SLOT_KEY_2_BYTES)).hasSize(2);
 	}
 
 	@Test // DATAREDIS-315
-	public void brPopShouldPopElementCorectly() {
+	public void brPopShouldPopElementCorrectly() {
 
 		nativeConnection.lpush(KEY_1, VALUE_1, VALUE_2);
 		nativeConnection.lpush(KEY_2, VALUE_3);
 
-		assertThat(clusterConnection.bRPop(100, KEY_1_BYTES, KEY_2_BYTES).size()).isEqualTo(2);
+		assertThat(clusterConnection.bRPop(100, KEY_1_BYTES, KEY_2_BYTES)).hasSize(2);
 	}
 
 	@Test // DATAREDIS-315
-	public void brPopShouldPopElementCorectlyWhenKeyOnSameSlot() {
+	public void brPopShouldPopElementCorrectlyWhenKeyOnSameSlot() {
 
 		nativeConnection.lpush(SAME_SLOT_KEY_1, VALUE_1, VALUE_2);
 		nativeConnection.lpush(SAME_SLOT_KEY_2, VALUE_3);
 
-		assertThat(clusterConnection.bRPop(100, SAME_SLOT_KEY_1_BYTES, SAME_SLOT_KEY_2_BYTES).size()).isEqualTo(2);
+		assertThat(clusterConnection.bRPop(100, SAME_SLOT_KEY_1_BYTES, SAME_SLOT_KEY_2_BYTES)).hasSize(2);
 	}
 
 	@Test // DATAREDIS-315
@@ -280,7 +291,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 		Map<RedisClusterNode, Collection<RedisClusterNode>> masterSlaveMap = clusterConnection.clusterGetMasterSlaveMap();
 
 		assertThat(masterSlaveMap).isNotNull();
-		assertThat(masterSlaveMap.size()).isEqualTo(3);
+		assertThat(masterSlaveMap).hasSize(3);
 		assertThat(masterSlaveMap.get(new RedisClusterNode(CLUSTER_HOST, MASTER_NODE_1_PORT)))
 				.contains(new RedisClusterNode(CLUSTER_HOST, SLAVEOF_NODE_1_PORT));
 		assertThat(masterSlaveMap.get(new RedisClusterNode(CLUSTER_HOST, MASTER_NODE_2_PORT)).isEmpty()).isTrue();
@@ -293,7 +304,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 		Set<RedisClusterNode> slaves = clusterConnection
 				.clusterGetSlaves(new RedisClusterNode(CLUSTER_HOST, MASTER_NODE_1_PORT));
 
-		assertThat(slaves.size()).isEqualTo(1);
+		assertThat(slaves).hasSize(1);
 		assertThat(slaves).contains(new RedisClusterNode(CLUSTER_HOST, SLAVEOF_NODE_1_PORT));
 	}
 
@@ -450,7 +461,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 
 		clusterConnection.expireAt(KEY_1_BYTES, System.currentTimeMillis() / 1000 + 5000);
 
-		assertThat(nativeConnection.ttl(LettuceConverters.toString(KEY_1_BYTES)) > 1).isTrue();
+		assertThat(nativeConnection.ttl(LettuceConverters.toString(KEY_1_BYTES))).isGreaterThan(1);
 	}
 
 	@Test // DATAREDIS-315
@@ -460,7 +471,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 
 		clusterConnection.expire(KEY_1_BYTES, 5);
 
-		assertThat(nativeConnection.ttl(LettuceConverters.toString(KEY_1_BYTES)) > 1).isTrue();
+		assertThat(nativeConnection.ttl(LettuceConverters.toString(KEY_1_BYTES))).isGreaterThan(1);
 	}
 
 	@Test // DATAREDIS-315
@@ -488,20 +499,17 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-438
-	@IfProfileValue(name = "redisVersion", value = "3.2+")
 	public void geoAddMultipleGeoLocations() {
 		assertThat(clusterConnection.geoAdd(KEY_1_BYTES,
 				Arrays.asList(PALERMO_BYTES, ARIGENTO_BYTES, CATANIA_BYTES, PALERMO_BYTES))).isEqualTo(3L);
 	}
 
 	@Test // DATAREDIS-438
-	@IfProfileValue(name = "redisVersion", value = "3.2+")
 	public void geoAddSingleGeoLocation() {
 		assertThat(clusterConnection.geoAdd(KEY_1_BYTES, PALERMO_BYTES)).isEqualTo(1L);
 	}
 
 	@Test // DATAREDIS-438
-	@IfProfileValue(name = "redisVersion", value = "3.2+")
 	public void geoDist() {
 
 		nativeConnection.geoadd(KEY_1, PALERMO.getPoint().getX(), PALERMO.getPoint().getY(), PALERMO.getName());
@@ -514,7 +522,6 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-438
-	@IfProfileValue(name = "redisVersion", value = "3.2+")
 	public void geoDistWithMetric() {
 
 		nativeConnection.geoadd(KEY_1, PALERMO.getPoint().getX(), PALERMO.getPoint().getY(), PALERMO.getName());
@@ -529,7 +536,6 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-438
-	@IfProfileValue(name = "redisVersion", value = "3.2+")
 	public void geoHash() {
 
 		nativeConnection.geoadd(KEY_1, PALERMO.getPoint().getX(), PALERMO.getPoint().getY(), PALERMO.getName());
@@ -540,7 +546,6 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-438
-	@IfProfileValue(name = "redisVersion", value = "3.2+")
 	public void geoHashNonExisting() {
 
 		nativeConnection.geoadd(KEY_1, PALERMO.getPoint().getX(), PALERMO.getPoint().getY(), PALERMO.getName());
@@ -548,11 +553,10 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 
 		List<String> result = clusterConnection.geoHash(KEY_1_BYTES, PALERMO_BYTES.getName(), ARIGENTO_BYTES.getName(),
 				CATANIA_BYTES.getName());
-		assertThat(result).containsExactly("sqc8b49rny0", (String) null, "sqdtr74hyu0");
+		assertThat(result).containsExactly("sqc8b49rny0", null, "sqdtr74hyu0");
 	}
 
 	@Test // DATAREDIS-438
-	@IfProfileValue(name = "redisVersion", value = "3.2+")
 	public void geoPosition() {
 
 		nativeConnection.geoadd(KEY_1, PALERMO.getPoint().getX(), PALERMO.getPoint().getY(), PALERMO.getName());
@@ -568,7 +572,6 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-438
-	@IfProfileValue(name = "redisVersion", value = "3.2+")
 	public void geoPositionNonExisting() {
 
 		nativeConnection.geoadd(KEY_1, PALERMO.getPoint().getX(), PALERMO.getPoint().getY(), PALERMO.getName());
@@ -587,7 +590,6 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-438
-	@IfProfileValue(name = "redisVersion", value = "3.2+")
 	public void geoRadiusByMemberShouldApplyLimit() {
 
 		nativeConnection.geoadd(KEY_1, PALERMO.getPoint().getX(), PALERMO.getPoint().getY(), PALERMO.getName());
@@ -601,7 +603,6 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-438
-	@IfProfileValue(name = "redisVersion", value = "3.2+")
 	public void geoRadiusByMemberShouldReturnDistanceCorrectly() {
 
 		nativeConnection.geoadd(KEY_1, PALERMO.getPoint().getX(), PALERMO.getPoint().getY(), PALERMO.getName());
@@ -617,7 +618,6 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-438
-	@IfProfileValue(name = "redisVersion", value = "3.2+")
 	public void geoRadiusByMemberShouldReturnMembersCorrectly() {
 
 		nativeConnection.geoadd(KEY_1, PALERMO.getPoint().getX(), PALERMO.getPoint().getY(), PALERMO.getName());
@@ -632,7 +632,6 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-438
-	@IfProfileValue(name = "redisVersion", value = "3.2+")
 	public void geoRadiusShouldApplyLimit() {
 
 		nativeConnection.geoadd(KEY_1, PALERMO.getPoint().getX(), PALERMO.getPoint().getY(), PALERMO.getName());
@@ -646,7 +645,6 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-438
-	@IfProfileValue(name = "redisVersion", value = "3.2+")
 	public void geoRadiusShouldReturnDistanceCorrectly() {
 
 		nativeConnection.geoadd(KEY_1, PALERMO.getPoint().getX(), PALERMO.getPoint().getY(), PALERMO.getName());
@@ -662,7 +660,6 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-438
-	@IfProfileValue(name = "redisVersion", value = "3.2+")
 	public void geoRadiusShouldReturnMembersCorrectly() {
 
 		nativeConnection.geoadd(KEY_1, PALERMO.getPoint().getX(), PALERMO.getPoint().getY(), PALERMO.getName());
@@ -675,7 +672,6 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-438
-	@IfProfileValue(name = "redisVersion", value = "3.2+")
 	public void geoRemoveDeletesMembers() {
 
 		nativeConnection.geoadd(KEY_1, PALERMO.getPoint().getX(), PALERMO.getPoint().getY(), PALERMO.getName());
@@ -1069,7 +1065,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-315
-	public void lPushNXShoultNotAddValuesWhenKeyDoesNotExist() {
+	public void lPushNXShouldNotAddValuesWhenKeyDoesNotExist() {
 
 		clusterConnection.lPushX(KEY_1_BYTES, VALUE_1_BYTES);
 
@@ -1077,7 +1073,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-315
-	public void lPushShoultAddValuesCorrectly() {
+	public void lPushShouldAddValuesCorrectly() {
 
 		clusterConnection.lPush(KEY_1_BYTES, VALUE_1_BYTES, VALUE_2_BYTES);
 
@@ -1245,7 +1241,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 
 		clusterConnection.pExpireAt(KEY_1_BYTES, System.currentTimeMillis() + 5000);
 
-		assertThat(nativeConnection.ttl(LettuceConverters.toString(KEY_1_BYTES)) > 1).isTrue();
+		assertThat(nativeConnection.ttl(LettuceConverters.toString(KEY_1_BYTES))).isGreaterThan(1);
 	}
 
 	@Test // DATAREDIS-315
@@ -1255,7 +1251,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 
 		clusterConnection.pExpire(KEY_1_BYTES, 5000);
 
-		assertThat(nativeConnection.ttl(LettuceConverters.toString(KEY_1_BYTES)) > 1).isTrue();
+		assertThat(nativeConnection.ttl(LettuceConverters.toString(KEY_1_BYTES))).isGreaterThan(1);
 	}
 
 	@Test // DATAREDIS-315
@@ -1264,7 +1260,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 		clusterConnection.pSetEx(KEY_1_BYTES, 5000, VALUE_1_BYTES);
 
 		assertThat(nativeConnection.get(KEY_1)).isEqualTo(VALUE_1);
-		assertThat(nativeConnection.ttl(KEY_1) > 1).isTrue();
+		assertThat(nativeConnection.ttl(KEY_1)).isGreaterThan(1);
 	}
 
 	@Test // DATAREDIS-315
@@ -1273,7 +1269,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 		nativeConnection.set(KEY_1, VALUE_1);
 		nativeConnection.expire(KEY_1, 5);
 
-		assertThat(clusterConnection.pTtl(KEY_1_BYTES) > 1).isTrue();
+		assertThat(clusterConnection.pTtl(KEY_1_BYTES)).isGreaterThan(1);
 	}
 
 	@Test // DATAREDIS-315
@@ -1308,14 +1304,14 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 
 		clusterConnection.pfAdd(KEY_1_BYTES, VALUE_1_BYTES, VALUE_2_BYTES, VALUE_3_BYTES);
 
-		assertThat(((RedisHLLCommands<String, String>) nativeConnection).pfcount(KEY_1)).isEqualTo(3L);
+		assertThat(nativeConnection.pfcount(KEY_1)).isEqualTo(3L);
 	}
 
 	@Test // DATAREDIS-315
 	public void pfCountShouldAllowCountingOnSameSlotKeys() {
 
-		((RedisHLLCommands<String, String>) nativeConnection).pfadd(SAME_SLOT_KEY_1, VALUE_1, VALUE_2);
-		((RedisHLLCommands<String, String>) nativeConnection).pfadd(SAME_SLOT_KEY_2, VALUE_2, VALUE_3);
+		nativeConnection.pfadd(SAME_SLOT_KEY_1, VALUE_1, VALUE_2);
+		nativeConnection.pfadd(SAME_SLOT_KEY_2, VALUE_2, VALUE_3);
 
 		assertThat(clusterConnection.pfCount(SAME_SLOT_KEY_1_BYTES, SAME_SLOT_KEY_2_BYTES)).isEqualTo(3L);
 	}
@@ -1323,18 +1319,19 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	@Test // DATAREDIS-315
 	public void pfCountShouldAllowCountingOnSingleKey() {
 
-		((RedisHLLCommands<String, String>) nativeConnection).pfadd(KEY_1, VALUE_1, VALUE_2, VALUE_3);
+		nativeConnection.pfadd(KEY_1, VALUE_1, VALUE_2, VALUE_3);
 
 		assertThat(clusterConnection.pfCount(KEY_1_BYTES)).isEqualTo(3L);
 	}
 
-	@Test(expected = DataAccessException.class) // DATAREDIS-315
+	@Test // DATAREDIS-315
 	public void pfCountShouldThrowErrorCountingOnDifferentSlotKeys() {
 
-		((RedisHLLCommands<String, String>) nativeConnection).pfadd(KEY_1, VALUE_1, VALUE_2);
-		((RedisHLLCommands<String, String>) nativeConnection).pfadd(KEY_2, VALUE_2, VALUE_3);
+		nativeConnection.pfadd(KEY_1, VALUE_1, VALUE_2);
+		nativeConnection.pfadd(KEY_2, VALUE_2, VALUE_3);
 
-		clusterConnection.pfCount(KEY_1_BYTES, KEY_2_BYTES);
+		assertThatExceptionOfType(DataAccessException.class)
+				.isThrownBy(() -> clusterConnection.pfCount(KEY_1_BYTES, KEY_2_BYTES));
 	}
 
 	@Test // DATAREDIS-315
@@ -1346,12 +1343,12 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	@Test // DATAREDIS-315
 	public void pfMergeShouldWorkWhenAllKeysMapToSameSlot() {
 
-		((RedisHLLCommands<String, String>) nativeConnection).pfadd(SAME_SLOT_KEY_1, VALUE_1, VALUE_2);
-		((RedisHLLCommands<String, String>) nativeConnection).pfadd(SAME_SLOT_KEY_2, VALUE_2, VALUE_3);
+		nativeConnection.pfadd(SAME_SLOT_KEY_1, VALUE_1, VALUE_2);
+		nativeConnection.pfadd(SAME_SLOT_KEY_2, VALUE_2, VALUE_3);
 
-		((RedisHLLCommands<String, String>) nativeConnection).pfmerge(SAME_SLOT_KEY_3, SAME_SLOT_KEY_1, SAME_SLOT_KEY_2);
+		nativeConnection.pfmerge(SAME_SLOT_KEY_3, SAME_SLOT_KEY_1, SAME_SLOT_KEY_2);
 
-		assertThat(((RedisHLLCommands<String, String>) nativeConnection).pfcount(SAME_SLOT_KEY_3)).isEqualTo(3L);
+		assertThat(nativeConnection.pfcount(SAME_SLOT_KEY_3)).isEqualTo(3L);
 	}
 
 	@Test // DATAREDIS-315
@@ -1376,7 +1373,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 		nativeConnection.lpush(KEY_1, VALUE_1, VALUE_2);
 		nativeConnection.lpush(KEY_2, VALUE_3);
 
-		assertThat(clusterConnection.bLPop(100, KEY_1_BYTES, KEY_2_BYTES).size()).isEqualTo(2);
+		assertThat(clusterConnection.bLPop(100, KEY_1_BYTES, KEY_2_BYTES)).hasSize(2);
 	}
 
 	@Test // DATAREDIS-315
@@ -1397,7 +1394,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-315
-	public void rPushNXShoultNotAddValuesWhenKeyDoesNotExist() {
+	public void rPushNXShouldNotAddValuesWhenKeyDoesNotExist() {
 
 		clusterConnection.rPushX(KEY_1_BYTES, VALUE_1_BYTES);
 
@@ -1405,7 +1402,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-315
-	public void rPushShoultAddValuesCorrectly() {
+	public void rPushShouldAddValuesCorrectly() {
 
 		clusterConnection.rPush(KEY_1_BYTES, VALUE_1_BYTES, VALUE_2_BYTES);
 
@@ -1649,7 +1646,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-668
-	public void sPopWithCountShouldPopValueFromSetCorrectly() {
+	void sPopWithCountShouldPopValueFromSetCorrectly() {
 
 		nativeConnection.sadd(KEY_1, VALUE_1, VALUE_2, VALUE_3);
 
@@ -1751,7 +1748,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 		clusterConnection.setEx(KEY_1_BYTES, 5, VALUE_1_BYTES);
 
 		assertThat(nativeConnection.get(KEY_1)).isEqualTo(VALUE_1);
-		assertThat(nativeConnection.ttl(KEY_1) > 1).isTrue();
+		assertThat(nativeConnection.ttl(KEY_1)).isGreaterThan(1);
 	}
 
 	@Test // DATAREDIS-315
@@ -1941,11 +1938,11 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 		nativeConnection.set(KEY_1, VALUE_1);
 		nativeConnection.expire(KEY_1, 5);
 
-		assertThat(clusterConnection.ttl(KEY_1_BYTES) > 1).isTrue();
+		assertThat(clusterConnection.ttl(KEY_1_BYTES)).isGreaterThan(1);
 	}
 
 	@Test // DATAREDIS-526
-	public void ttlWithTimeUnitShouldReturnMinusOneWhenKeyDoesNotHaveExpirationSet() {
+	void ttlWithTimeUnitShouldReturnMinusOneWhenKeyDoesNotHaveExpirationSet() {
 
 		nativeConnection.set(KEY_1, VALUE_1);
 
@@ -1980,7 +1977,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-674
-	public void zAddShouldAddMultipleValuesWithScoreCorrectly() {
+	void zAddShouldAddMultipleValuesWithScoreCorrectly() {
 
 		Set<Tuple> tuples = new HashSet<>();
 		tuples.add(new DefaultTuple(VALUE_1_BYTES, 10D));
@@ -2113,7 +2110,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 		nativeConnection.zadd(KEY_1, 5D, VALUE_3);
 
 		assertThat(clusterConnection.zRangeByScoreWithScores(KEY_1_BYTES, 10, 20))
-				.contains((Tuple) new DefaultTuple(VALUE_1_BYTES, 10D), (Tuple) new DefaultTuple(VALUE_2_BYTES, 20D));
+				.contains(new DefaultTuple(VALUE_1_BYTES, 10D), new DefaultTuple(VALUE_2_BYTES, 20D));
 	}
 
 	@Test // DATAREDIS-315
@@ -2124,7 +2121,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 		nativeConnection.zadd(KEY_1, 5D, VALUE_3);
 
 		assertThat(clusterConnection.zRangeByScoreWithScores(KEY_1_BYTES, 10D, 20D, 0L, 1L))
-				.contains((Tuple) new DefaultTuple(VALUE_1_BYTES, 10D));
+				.contains(new DefaultTuple(VALUE_1_BYTES, 10D));
 	}
 
 	@Test // DATAREDIS-315
@@ -2145,7 +2142,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 		nativeConnection.zadd(KEY_1, 5D, VALUE_3);
 
 		assertThat(clusterConnection.zRangeWithScores(KEY_1_BYTES, 1, 2))
-				.contains((Tuple) new DefaultTuple(VALUE_1_BYTES, 10D), (Tuple) new DefaultTuple(VALUE_2_BYTES, 20D));
+				.contains(new DefaultTuple(VALUE_1_BYTES, 10D), new DefaultTuple(VALUE_2_BYTES, 20D));
 	}
 
 	@Test // DATAREDIS-315
@@ -2231,7 +2228,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 		nativeConnection.zadd(KEY_1, 5D, VALUE_3);
 
 		assertThat(clusterConnection.zRevRangeByScoreWithScores(KEY_1_BYTES, 10D, 20D))
-				.contains((Tuple) new DefaultTuple(VALUE_2_BYTES, 20D), (Tuple) new DefaultTuple(VALUE_1_BYTES, 10D));
+				.contains(new DefaultTuple(VALUE_2_BYTES, 20D), new DefaultTuple(VALUE_1_BYTES, 10D));
 	}
 
 	@Test // DATAREDIS-315
@@ -2242,7 +2239,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 		nativeConnection.zadd(KEY_1, 5D, VALUE_3);
 
 		assertThat(clusterConnection.zRevRangeByScoreWithScores(KEY_1_BYTES, 10D, 20D, 0L, 1L))
-				.contains((Tuple) new DefaultTuple(VALUE_2_BYTES, 20D));
+				.contains(new DefaultTuple(VALUE_2_BYTES, 20D));
 	}
 
 	@Test // DATAREDIS-315
@@ -2263,7 +2260,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 		nativeConnection.zadd(KEY_1, 5D, VALUE_3);
 
 		assertThat(clusterConnection.zRevRangeWithScores(KEY_1_BYTES, 1, 2))
-				.contains((Tuple) new DefaultTuple(VALUE_3_BYTES, 5D), (Tuple) new DefaultTuple(VALUE_1_BYTES, 10D));
+				.contains(new DefaultTuple(VALUE_3_BYTES, 5D), new DefaultTuple(VALUE_1_BYTES, 10D));
 	}
 
 	@Test
@@ -2314,7 +2311,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-694
-	public void touchReturnsNrOfKeysTouched() {
+	void touchReturnsNrOfKeysTouched() {
 
 		nativeConnection.set(KEY_1, VALUE_1);
 		nativeConnection.set(KEY_2, VALUE_1);
@@ -2323,12 +2320,12 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-694
-	public void touchReturnsZeroIfNoKeysTouched() {
+	void touchReturnsZeroIfNoKeysTouched() {
 		assertThat(clusterConnection.keyCommands().touch(KEY_1_BYTES)).isEqualTo(0L);
 	}
 
 	@Test // DATAREDIS-693
-	public void unlinkReturnsNrOfKeysTouched() {
+	void unlinkReturnsNrOfKeysTouched() {
 
 		nativeConnection.set(KEY_1, VALUE_1);
 		nativeConnection.set(KEY_2, VALUE_1);
@@ -2337,12 +2334,12 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-693
-	public void unlinkReturnsZeroIfNoKeysTouched() {
+	void unlinkReturnsZeroIfNoKeysTouched() {
 		assertThat(clusterConnection.keyCommands().unlink(KEY_1_BYTES)).isEqualTo(0L);
 	}
 
 	@Test // DATAREDIS-697
-	public void bitPosShouldReturnPositionCorrectly() {
+	void bitPosShouldReturnPositionCorrectly() {
 
 		binaryConnection.set(KEY_1_BYTES, HexStringUtils.hexToBytes("fff000"));
 
@@ -2350,7 +2347,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-697
-	public void bitPosShouldReturnPositionInRangeCorrectly() {
+	void bitPosShouldReturnPositionInRangeCorrectly() {
 
 		binaryConnection.set(KEY_1_BYTES, HexStringUtils.hexToBytes("fff0f0"));
 
@@ -2359,7 +2356,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-716
-	public void encodingReturnsCorrectly() {
+	void encodingReturnsCorrectly() {
 
 		nativeConnection.set(KEY_1, "1000");
 
@@ -2367,12 +2364,12 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-716
-	public void encodingReturnsVacantWhenKeyDoesNotExist() {
+	void encodingReturnsVacantWhenKeyDoesNotExist() {
 		assertThat(clusterConnection.keyCommands().encodingOf(KEY_2_BYTES)).isEqualTo(RedisValueEncoding.VACANT);
 	}
 
 	@Test // DATAREDIS-716
-	public void idletimeReturnsCorrectly() {
+	void idletimeReturnsCorrectly() {
 
 		nativeConnection.set(KEY_1, VALUE_1);
 		nativeConnection.get(KEY_1);
@@ -2381,12 +2378,12 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-716
-	public void idldetimeReturnsNullWhenKeyDoesNotExist() {
+	void idldetimeReturnsNullWhenKeyDoesNotExist() {
 		assertThat(clusterConnection.keyCommands().idletime(KEY_3_BYTES)).isNull();
 	}
 
 	@Test // DATAREDIS-716
-	public void refcountReturnsCorrectly() {
+	void refcountReturnsCorrectly() {
 
 		nativeConnection.lpush(KEY_1, VALUE_1);
 
@@ -2394,13 +2391,12 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-716
-	public void refcountReturnsNullWhenKeyDoesNotExist() {
+	void refcountReturnsNullWhenKeyDoesNotExist() {
 		assertThat(clusterConnection.keyCommands().refcount(KEY_3_BYTES)).isNull();
 	}
 
 	@Test // DATAREDIS-562
-	@IfProfileValue(name = "redisVersion", value = "3.2+")
-	public void bitFieldSetShouldWorkCorrectly() {
+	void bitFieldSetShouldWorkCorrectly() {
 
 		assertThat(clusterConnection.stringCommands().bitField(JedisConverters.toBytes(KEY_1),
 				create().set(INT_8).valueAt(BitFieldSubCommands.Offset.offset(0L)).to(10L))).containsExactly(0L);
@@ -2409,24 +2405,21 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-562
-	@IfProfileValue(name = "redisVersion", value = "3.2+")
-	public void bitFieldGetShouldWorkCorrectly() {
+	void bitFieldGetShouldWorkCorrectly() {
 
 		assertThat(clusterConnection.stringCommands().bitField(JedisConverters.toBytes(KEY_1),
 				create().get(INT_8).valueAt(BitFieldSubCommands.Offset.offset(0L)))).containsExactly(0L);
 	}
 
 	@Test // DATAREDIS-562
-	@IfProfileValue(name = "redisVersion", value = "3.2+")
-	public void bitFieldIncrByShouldWorkCorrectly() {
+	void bitFieldIncrByShouldWorkCorrectly() {
 
 		assertThat(clusterConnection.stringCommands().bitField(JedisConverters.toBytes(KEY_1),
 				create().incr(INT_8).valueAt(BitFieldSubCommands.Offset.offset(100L)).by(1L))).containsExactly(1L);
 	}
 
 	@Test // DATAREDIS-562
-	@IfProfileValue(name = "redisVersion", value = "3.2+")
-	public void bitFieldIncrByWithOverflowShouldWorkCorrectly() {
+	void bitFieldIncrByWithOverflowShouldWorkCorrectly() {
 
 		assertThat(clusterConnection.stringCommands().bitField(JedisConverters.toBytes(KEY_1),
 				create().incr(unsigned(2)).valueAt(BitFieldSubCommands.Offset.offset(102L)).overflow(FAIL).by(1L)))
@@ -2442,8 +2435,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-562
-	@IfProfileValue(name = "redisVersion", value = "3.2+")
-	public void bitfieldShouldAllowMultipleSubcommands() {
+	void bitfieldShouldAllowMultipleSubcommands() {
 
 		assertThat(clusterConnection.stringCommands().bitField(JedisConverters.toBytes(KEY_1),
 				create().incr(signed(5)).valueAt(BitFieldSubCommands.Offset.offset(100L)).by(1L).get(unsigned(4)).valueAt(0L)))
@@ -2451,8 +2443,7 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 	}
 
 	@Test // DATAREDIS-562
-	@IfProfileValue(name = "redisVersion", value = "3.2+")
-	public void bitfieldShouldWorkUsingNonZeroBasedOffset() {
+	void bitfieldShouldWorkUsingNonZeroBasedOffset() {
 
 		assertThat(
 				clusterConnection.stringCommands().bitField(JedisConverters.toBytes(KEY_1),
@@ -2465,5 +2456,19 @@ public class LettuceClusterConnectionTests implements ClusterConnectionTests {
 								create().get(INT_8).valueAt(BitFieldSubCommands.Offset.offset(0L).multipliedByTypeLength()).get(INT_8)
 										.valueAt(BitFieldSubCommands.Offset.offset(1L).multipliedByTypeLength()))).containsExactly(100L,
 												-56L);
+	}
+
+	@Test // DATAREDIS-1103
+	void setKeepTTL() {
+
+		long expireSeconds = 10;
+		nativeConnection.setex(KEY_1, expireSeconds, VALUE_1);
+
+		assertThat(
+				clusterConnection.stringCommands().set(KEY_1_BYTES, VALUE_2_BYTES, Expiration.keepTtl(), SetOption.upsert()))
+						.isTrue();
+
+		assertThat(nativeConnection.ttl(KEY_1)).isCloseTo(expireSeconds, Offset.offset(5L));
+		assertThat(nativeConnection.get(KEY_1)).isEqualTo(VALUE_2);
 	}
 }

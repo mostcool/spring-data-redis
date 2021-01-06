@@ -25,74 +25,58 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
+import org.junit.jupiter.api.BeforeEach;
 
-import org.springframework.data.redis.ConnectionFactoryTracker;
-import org.springframework.data.redis.SettingsUtils;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.connection.jedis.extension.JedisConnectionFactoryExtension;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
-import org.springframework.data.redis.connection.lettuce.LettuceTestClientResources;
+import org.springframework.data.redis.connection.lettuce.extension.LettuceConnectionFactoryExtension;
 import org.springframework.data.redis.core.BoundHashOperations;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.test.extension.RedisStanalone;
+import org.springframework.data.redis.test.extension.parametrized.MethodSource;
+import org.springframework.data.redis.test.extension.parametrized.ParameterizedRedisTest;
 
 /**
  * @author Mark Paluch
  * @author Christoph Strobl
  */
-@RunWith(Parameterized.class)
+@MethodSource("params")
 public class ScanTests {
 
-	RedisConnectionFactory factory;
-	RedisTemplate<String, String> redisOperations;
+	private RedisConnectionFactory factory;
+	private RedisTemplate<String, String> redisOperations;
 
-	ThreadPoolExecutor executor = new ThreadPoolExecutor(10, 10, 1, TimeUnit.MINUTES,
+	private ThreadPoolExecutor executor = new ThreadPoolExecutor(10, 10, 1, TimeUnit.MINUTES,
 			new LinkedBlockingDeque<>());
 
 	public ScanTests(RedisConnectionFactory factory) {
-
 		this.factory = factory;
-		ConnectionFactoryTracker.add(factory);
 	}
 
-	@Parameters
 	public static List<RedisConnectionFactory> params() {
 
-		JedisConnectionFactory jedisConnectionFactory = new JedisConnectionFactory();
-		jedisConnectionFactory.setHostName(SettingsUtils.getHost());
-		jedisConnectionFactory.setPort(SettingsUtils.getPort());
-		jedisConnectionFactory.afterPropertiesSet();
+		JedisConnectionFactory jedisConnectionFactory = JedisConnectionFactoryExtension
+				.getConnectionFactory(RedisStanalone.class);
 
-		LettuceConnectionFactory lettuceConnectionFactory = new LettuceConnectionFactory();
-		lettuceConnectionFactory.setClientResources(LettuceTestClientResources.getSharedClientResources());
-		lettuceConnectionFactory.setHostName(SettingsUtils.getHost());
-		lettuceConnectionFactory.setPort(SettingsUtils.getPort());
-		lettuceConnectionFactory.afterPropertiesSet();
+		LettuceConnectionFactory lettuceConnectionFactory = LettuceConnectionFactoryExtension
+				.getConnectionFactory(RedisStanalone.class);
 
-		return Arrays.<RedisConnectionFactory> asList(jedisConnectionFactory, lettuceConnectionFactory);
+		return Arrays.asList(jedisConnectionFactory, lettuceConnectionFactory);
 	}
 
-	@AfterClass
-	public static void cleanUp() {
-		ConnectionFactoryTracker.cleanUp();
-	}
-
-	@Before
-	public void setUp() {
+	@BeforeEach
+	void setUp() {
 
 		redisOperations = new StringRedisTemplate(factory);
 		redisOperations.afterPropertiesSet();
 	}
 
-	@Test
-	public void contextLoads() throws InterruptedException {
+	@ParameterizedRedisTest
+	void contextLoads() throws InterruptedException {
 
 		BoundHashOperations<String, String, String> hash = redisOperations.boundHashOps("hash");
 		final AtomicReference<Exception> exception = new AtomicReference<>();

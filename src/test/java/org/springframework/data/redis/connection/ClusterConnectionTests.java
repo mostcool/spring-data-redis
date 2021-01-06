@@ -46,16 +46,16 @@ public interface ClusterConnectionTests {
 	void bitOpShouldThrowExceptionWhenKeysDoNotMapToSameSlot();
 
 	// DATAREDIS-315
-	void blPopShouldPopElementCorectly();
+	void blPopShouldPopElementCorrectly();
 
 	// DATAREDIS-315
-	void blPopShouldPopElementCorectlyWhenKeyOnSameSlot();
+	void blPopShouldPopElementCorrectlyWhenKeyOnSameSlot();
 
 	// DATAREDIS-315
-	void brPopShouldPopElementCorectly();
+	void brPopShouldPopElementCorrectly();
 
 	// DATAREDIS-315
-	void brPopShouldPopElementCorectlyWhenKeyOnSameSlot();
+	void brPopShouldPopElementCorrectlyWhenKeyOnSameSlot();
 
 	// DATAREDIS-315
 	void clientListShouldGetInfosForAllClients();
@@ -289,10 +289,10 @@ public interface ClusterConnectionTests {
 	void lPopShouldReturnElementCorrectly();
 
 	// DATAREDIS-315
-	void lPushNXShoultNotAddValuesWhenKeyDoesNotExist();
+	void lPushNXShouldNotAddValuesWhenKeyDoesNotExist();
 
 	// DATAREDIS-315
-	void lPushShoultAddValuesCorrectly();
+	void lPushShouldAddValuesCorrectly();
 
 	// DATAREDIS-315
 	void lRangeShouldGetValuesCorrectly();
@@ -399,10 +399,10 @@ public interface ClusterConnectionTests {
 	void rPopShouldReturnElementCorrectly();
 
 	// DATAREDIS-315
-	void rPushNXShoultNotAddValuesWhenKeyDoesNotExist();
+	void rPushNXShouldNotAddValuesWhenKeyDoesNotExist();
 
 	// DATAREDIS-315
-	void rPushShoultAddValuesCorrectly();
+	void rPushShouldAddValuesCorrectly();
 
 	// DATAREDIS-315
 	void randomKeyShouldReturnCorrectlyWhenKeysAvailable();

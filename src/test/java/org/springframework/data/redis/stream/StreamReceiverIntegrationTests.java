@@ -16,37 +16,35 @@
 package org.springframework.data.redis.stream;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.junit.Assume.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicReference;
 
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-import org.springframework.data.redis.ConnectionFactoryTracker;
+import org.springframework.core.convert.ConversionFailedException;
 import org.springframework.data.redis.RedisSystemException;
-import org.springframework.data.redis.RedisVersionUtils;
-import org.springframework.data.redis.SettingsUtils;
 import org.springframework.data.redis.connection.RedisConnection;
-import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
-import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
-import org.springframework.data.redis.connection.lettuce.LettuceTestClientResources;
+import org.springframework.data.redis.connection.lettuce.extension.LettuceConnectionFactoryExtension;
+import org.springframework.data.redis.connection.stream.ByteBufferRecord;
 import org.springframework.data.redis.connection.stream.Consumer;
 import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.ObjectRecord;
 import org.springframework.data.redis.connection.stream.ReadOffset;
+import org.springframework.data.redis.connection.stream.Record;
 import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -54,6 +52,7 @@ import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.RedisSerializationContext.SerializationPair;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.data.redis.stream.StreamReceiver.StreamReceiverOptions;
+import org.springframework.data.redis.test.condition.EnabledOnCommand;
 
 /**
  * Integration tests for {@link StreamReceiver}.
@@ -61,47 +60,28 @@ import org.springframework.data.redis.stream.StreamReceiver.StreamReceiverOption
  * @author Mark Paluch
  * @author Eddie McDaniel
  */
+@EnabledOnCommand("XREAD")
+@ExtendWith(LettuceConnectionFactoryExtension.class)
 public class StreamReceiverIntegrationTests {
 
-	private static final RedisStandaloneConfiguration standaloneConfiguration = new RedisStandaloneConfiguration(
-			SettingsUtils.getHost(), SettingsUtils.getPort());
+	final LettuceConnectionFactory connectionFactory;
+	final StringRedisTemplate redisTemplate;
+	final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
 
-	private static LettuceConnectionFactory connectionFactory;
-	private StringRedisTemplate redisTemplate = new StringRedisTemplate(connectionFactory);
-	private static ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
+	public StreamReceiverIntegrationTests(LettuceConnectionFactory connectionFactory) {
 
-	@BeforeClass
-	public static void beforeClass() {
-
-		LettuceClientConfiguration clientConfiguration = LettuceClientConfiguration.builder() //
-				.shutdownTimeout(Duration.ZERO) //
-				.clientResources(LettuceTestClientResources.getSharedClientResources()) //
-				.build();
-
-		LettuceConnectionFactory lettuceConnectionFactory = new LettuceConnectionFactory(standaloneConfiguration,
-				clientConfiguration);
-		lettuceConnectionFactory.afterPropertiesSet();
-
-		ConnectionFactoryTracker.add(lettuceConnectionFactory);
-
-		connectionFactory = lettuceConnectionFactory;
-
-		assumeTrue(RedisVersionUtils.atLeast("5.0", connectionFactory.getConnection()));
+		this.connectionFactory = connectionFactory;
+		this.redisTemplate = new StringRedisTemplate(connectionFactory);
 
 		RedisSerializationContext<String, String> serializationContext = RedisSerializationContext
 				.<String, String> newSerializationContext(StringRedisSerializer.UTF_8).hashKey(SerializationPair.raw())
 				.hashValue(SerializationPair.raw()).build();
 
-		reactiveRedisTemplate = new ReactiveRedisTemplate<>(connectionFactory, serializationContext);
+		this.reactiveRedisTemplate = new ReactiveRedisTemplate<>(connectionFactory, serializationContext);
 	}
 
-	@AfterClass
-	public static void tearDown() {
-		ConnectionFactoryTracker.cleanUp();
-	}
-
-	@Before
-	public void before() {
+	@BeforeEach
+	void before() {
 
 		RedisConnection connection = connectionFactory.getConnection();
 		connection.flushDb();
@@ -109,7 +89,7 @@ public class StreamReceiverIntegrationTests {
 	}
 
 	@Test // DATAREDIS-864
-	public void shouldReceiveMapRecords() {
+	void shouldReceiveMapRecords() {
 
 		StreamReceiver<String, MapRecord<String, String, String>> receiver = StreamReceiver.create(connectionFactory);
 
@@ -129,7 +109,7 @@ public class StreamReceiverIntegrationTests {
 	}
 
 	@Test // DATAREDIS-864
-	public void shouldReceiveSimpleObjectHashRecords() {
+	void shouldReceiveSimpleObjectHashRecords() {
 
 		StreamReceiverOptions<String, ObjectRecord<String, String>> receiverOptions = StreamReceiverOptions.builder()
 				.targetType(String.class).build();
@@ -151,7 +131,7 @@ public class StreamReceiverIntegrationTests {
 	}
 
 	@Test // DATAREDIS-864
-	public void shouldReceiveObjectHashRecords() {
+	void shouldReceiveObjectHashRecords() {
 
 		StreamReceiverOptions<String, ObjectRecord<String, LoginEvent>> receiverOptions = StreamReceiverOptions.builder()
 				.targetType(LoginEvent.class).build();
@@ -174,32 +154,28 @@ public class StreamReceiverIntegrationTests {
 	}
 
 	@Test // DATAREDIS-1172
-	public void shouldReceiveCustomHashValueRecords() {
+	void shouldReceiveCustomHashValueRecords() {
 
 		SerializationPair<Integer> serializationPair = mock(SerializationPair.class);
 		when(serializationPair.read(any(ByteBuffer.class))).thenReturn(345920);
 
 		StreamReceiverOptions<String, MapRecord<String, String, Integer>> receiverOptions = StreamReceiverOptions.builder()
-				.<String, Integer>hashValueSerializer(serializationPair).build();
+				.<String, Integer> hashValueSerializer(serializationPair).build();
 
 		StreamReceiver<String, MapRecord<String, String, Integer>> receiver = StreamReceiver.create(connectionFactory,
 				receiverOptions);
 
 		Flux<MapRecord<String, String, Integer>> messages = receiver.receive(StreamOffset.fromStart("my-stream"));
 
-		messages.as(StepVerifier::create)
-				.then(() -> reactiveRedisTemplate.opsForStream()
-					.add("my-stream", Collections.singletonMap("Jesse", "Pinkman")).subscribe())
-				.consumeNextWith(it -> {
+		messages.as(StepVerifier::create).then(() -> reactiveRedisTemplate.opsForStream()
+				.add("my-stream", Collections.singletonMap("Jesse", "Pinkman")).subscribe()).consumeNextWith(it -> {
 					assertThat(it.getStream()).isEqualTo("my-stream");
 					assertThat(it.getValue()).contains(entry("Jesse", 345920));
-				})
-				.thenCancel()
-				.verify(Duration.ofSeconds(5));
+				}).thenCancel().verify(Duration.ofSeconds(5));
 	}
 
 	@Test // DATAREDIS-864
-	public void latestModeLosesMessages() {
+	void latestModeLosesMessages() {
 
 		// XADD/XREAD highly timing-dependent as this tests require a poll subscription to receive messages using $ offset.
 
@@ -234,7 +210,7 @@ public class StreamReceiverIntegrationTests {
 	}
 
 	@Test // DATAREDIS-864
-	public void shouldReceiveAsConsumerGroupMessages() {
+	void shouldReceiveAsConsumerGroupMessages() {
 
 		StreamReceiver<String, MapRecord<String, String, String>> receiver = StreamReceiver.create(connectionFactory);
 
@@ -262,7 +238,7 @@ public class StreamReceiverIntegrationTests {
 	}
 
 	@Test // DATAREDIS-864
-	public void shouldStopReceivingOnError() {
+	void shouldStopReceivingOnError() {
 
 		StreamReceiverOptions<String, MapRecord<String, String, String>> options = StreamReceiverOptions.builder()
 				.pollTimeout(Duration.ofMillis(100)).build();
@@ -281,6 +257,37 @@ public class StreamReceiverIntegrationTests {
 				.then(() -> reactiveRedisTemplate.delete("my-stream").subscribe()) //
 				.expectError(RedisSystemException.class) //
 				.verify(Duration.ofSeconds(5));
+	}
+
+	@Test // DATAREDIS-864
+	void shouldResumeFromError() {
+
+		AtomicReference<Throwable> ref = new AtomicReference<>();
+		StreamReceiverOptions<String, ObjectRecord<String, Long>> options = StreamReceiverOptions.builder()
+				.pollTimeout(Duration.ofMillis(100)).targetType(Long.class).onErrorResume(throwable -> {
+
+					ref.set(throwable);
+					return Mono.empty();
+				}).build();
+
+		StreamReceiver<String, ObjectRecord<String, Long>> receiver = StreamReceiver.create(connectionFactory, options);
+
+		Flux<ObjectRecord<String, Long>> messages = receiver.receive(StreamOffset.fromStart("my-stream"));
+
+		redisTemplate.opsForStream().createGroup("my-stream", ReadOffset.from("0-0"), "my-group");
+		redisTemplate.opsForStream().add("my-stream", Collections.singletonMap("payload", "1"));
+		redisTemplate.opsForStream().add("my-stream", Collections.singletonMap("payload", "foo"));
+		redisTemplate.opsForStream().add("my-stream", Collections.singletonMap("payload", "3"));
+
+		messages.map(Record::getValue).as(StepVerifier::create) //
+				.expectNext(1L) //
+				.expectNext(3L) //
+				.thenCancel() //
+				.verify();
+
+		assertThat(ref.get()).isInstanceOf(ConversionFailedException.class)
+				.hasCauseInstanceOf(ConversionFailedException.class).hasRootCauseInstanceOf(NumberFormatException.class);
+		assertThat(((ConversionFailedException) ref.get()).getValue()).isInstanceOf(ByteBufferRecord.class);
 	}
 
 	@Data

@@ -123,17 +123,12 @@ class LettuceReactiveStreamCommands implements ReactiveStreamCommands {
 	@Override
 	public Flux<CommandResponse<XClaimCommand, Flux<RecordId>>> xClaimJustId(Publisher<XClaimCommand> commands) {
 
-		if (true /* TODO: set the JUSTID flag */ ) {
-			throw new UnsupportedOperationException("Lettuce does not support XCLAIM with JUSTID. (Ref: lettuce-io#1233)");
-		}
-
 		return connection.execute(cmd -> Flux.from(commands).map(command -> {
 
 			String[] ids = command.getOptions().getIdsAsStringArray();
 			io.lettuce.core.Consumer<ByteBuffer> from = io.lettuce.core.Consumer
 					.from(ByteUtils.getByteBuffer(command.getGroupName()), ByteUtils.getByteBuffer(command.getNewOwner()));
-			XClaimArgs args = StreamConverters.toXClaimArgs(command.getOptions());
-
+			XClaimArgs args = StreamConverters.toXClaimArgs(command.getOptions()).justid();
 			Flux<RecordId> result = cmd.xclaim(command.getKey(), from, args, ids).map(it -> RecordId.of(it.getId()));
 			return new CommandResponse<>(command, result);
 		}));

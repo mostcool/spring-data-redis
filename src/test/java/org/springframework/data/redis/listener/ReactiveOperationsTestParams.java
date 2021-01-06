@@ -17,22 +17,17 @@ package org.springframework.data.redis.listener;
 
 import static org.springframework.data.redis.connection.ClusterTestVariables.*;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import org.junit.runners.model.Statement;
-import org.springframework.data.redis.SettingsUtils;
 import org.springframework.data.redis.connection.RedisClusterConfiguration;
 import org.springframework.data.redis.connection.RedisClusterNode;
-import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
-import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
-import org.springframework.data.redis.connection.lettuce.LettucePoolingClientConfiguration;
-import org.springframework.data.redis.connection.lettuce.LettuceTestClientResources;
-import org.springframework.data.redis.test.util.RedisClusterRule;
+import org.springframework.data.redis.connection.lettuce.extension.LettuceConnectionFactoryExtension;
+import org.springframework.data.redis.test.condition.RedisDetector;
+import org.springframework.data.redis.test.extension.RedisStanalone;
 
 /**
  * Parameters for testing implementations of {@link ReactiveRedisMessageListenerContainer}
@@ -43,26 +38,10 @@ class ReactiveOperationsTestParams {
 
 	public static Collection<Object[]> testParams() {
 
-		LettuceClientConfiguration clientConfiguration = LettuceClientConfiguration.builder() //
-				.shutdownTimeout(Duration.ZERO) //
-				.clientResources(LettuceTestClientResources.getSharedClientResources()) //
-				.build();
-
-		LettucePoolingClientConfiguration poolingConfiguration = LettucePoolingClientConfiguration.builder() //
-				.shutdownTimeout(Duration.ZERO) //
-				.clientResources(LettuceTestClientResources.getSharedClientResources()) //
-				.build();
-
-		RedisStandaloneConfiguration standaloneConfiguration = new RedisStandaloneConfiguration(SettingsUtils.getHost(),
-				SettingsUtils.getPort());
-
-		LettuceConnectionFactory lettuceConnectionFactory = new LettuceConnectionFactory(standaloneConfiguration,
-				clientConfiguration);
-		lettuceConnectionFactory.afterPropertiesSet();
-
-		LettuceConnectionFactory poolingConnectionFactory = new LettuceConnectionFactory(standaloneConfiguration,
-				poolingConfiguration);
-		poolingConnectionFactory.afterPropertiesSet();
+		LettuceConnectionFactory lettuceConnectionFactory = LettuceConnectionFactoryExtension
+				.getConnectionFactory(RedisStanalone.class, false);
+		LettuceConnectionFactory poolingConnectionFactory = LettuceConnectionFactoryExtension
+				.getConnectionFactory(RedisStanalone.class, true);
 
 		List<Object[]> list = Arrays.asList(new Object[][] { //
 				{ lettuceConnectionFactory, "Standalone" }, //
@@ -74,9 +53,8 @@ class ReactiveOperationsTestParams {
 			RedisClusterConfiguration clusterConfiguration = new RedisClusterConfiguration();
 			clusterConfiguration.addClusterNode(new RedisClusterNode(CLUSTER_HOST, MASTER_NODE_1_PORT));
 
-			LettuceConnectionFactory lettuceClusterConnectionFactory = new LettuceConnectionFactory(clusterConfiguration,
-					clientConfiguration);
-			lettuceClusterConnectionFactory.afterPropertiesSet();
+			LettuceConnectionFactory lettuceClusterConnectionFactory = LettuceConnectionFactoryExtension
+					.getConnectionFactory(RedisStanalone.class);
 
 			list = new ArrayList<>(list);
 			list.add(new Object[] { lettuceClusterConnectionFactory, "Cluster" });
@@ -86,18 +64,7 @@ class ReactiveOperationsTestParams {
 	}
 
 	private static boolean clusterAvailable() {
-
-		try {
-			new RedisClusterRule().apply(new Statement() {
-				@Override
-				public void evaluate() {
-
-				}
-			}, null).evaluate();
-		} catch (Throwable throwable) {
-			return false;
-		}
-		return true;
+		return RedisDetector.isClusterAvailable();
 	}
 
 }

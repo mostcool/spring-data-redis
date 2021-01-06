@@ -43,6 +43,7 @@ import org.springframework.util.Assert;
  *
  * @author Mark Paluch
  * @author Christoph Strobl
+ * @author Andrey Shlykov
  * @since 2.0
  */
 class DefaultReactiveZSetOperations<K, V> implements ReactiveZSetOperations<K, V> {
@@ -329,6 +330,19 @@ class DefaultReactiveZSetOperations<K, V> implements ReactiveZSetOperations<K, V
 		Assert.notNull(range, "Range must not be null!");
 
 		return createMono(connection -> connection.zCount(rawKey(key), range));
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.springframework.data.redis.core.ReactiveZSetOperations#lexCount(java.lang.Object, org.springframework.data.domain.Range)
+	 */
+	@Override
+	public Mono<Long> lexCount(K key, Range<String> range) {
+
+		Assert.notNull(key, "Key must not be null!");
+		Assert.notNull(range, "Range must not be null!");
+
+		return createMono(connection -> connection.zLexCount(rawKey(key), range));
 	}
 
 	/*

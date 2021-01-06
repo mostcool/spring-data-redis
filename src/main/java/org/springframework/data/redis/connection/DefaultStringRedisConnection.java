@@ -68,6 +68,8 @@ import org.springframework.util.ObjectUtils;
  * @author Mark Paluch
  * @author Ninad Divadkar
  * @author Tugdual Grall
+ * @author Andrey Shlykov
+ * @author dengliming
  */
 public class DefaultStringRedisConnection implements StringRedisConnection, DecoratedRedisConnection {
 
@@ -1659,6 +1661,15 @@ public class DefaultStringRedisConnection implements StringRedisConnection, Deco
 
 	/*
 	 * (non-Javadoc)
+	 * @see org.springframework.data.redis.connection.StringRedisConnection#zLexCount(java.lang.String, org.springframework.data.redis.connection.RedisZSetCommands.Range)
+	 */
+	@Override
+	public Long zLexCount(String key, Range range) {
+		return delegate.zLexCount(serialize(key), range);
+	}
+
+	/*
+	 * (non-Javadoc)
 	 * @see org.springframework.data.redis.connection.RedisKeyCommands#pExpire(byte[], long)
 	 */
 	@Override
@@ -2709,6 +2720,15 @@ public class DefaultStringRedisConnection implements StringRedisConnection, Deco
 
 	/*
 	 * (non-Javadoc)
+	 * @see org.springframework.data.redis.connection.RedisZSetCommands#zLexCount(byte[], org.springframework.data.redis.connection.RedisZSetCommands.Range)
+	 */
+	@Override
+	public Long zLexCount(byte[] key, Range range) {
+		return delegate.zLexCount(key, range);
+	}
+
+	/*
+	 * (non-Javadoc)
 	 * @see org.springframework.data.redis.connection.StringRedisConnection#zIncrBy(java.lang.String, double, java.lang.String)
 	 */
 	@Override
@@ -3625,7 +3645,7 @@ public class DefaultStringRedisConnection implements StringRedisConnection, Deco
 	 */
 	@Override
 	public Set<String> zRangeByLex(String key, Range range) {
-		return zRangeByLex(key, range, null);
+		return zRangeByLex(key, range, Limit.unlimited());
 	}
 
 	/*
@@ -3634,7 +3654,25 @@ public class DefaultStringRedisConnection implements StringRedisConnection, Deco
 	 */
 	@Override
 	public Set<String> zRangeByLex(String key, Range range, Limit limit) {
-		return convertAndReturn(delegate.zRangeByLex(serialize(key), range), byteSetToStringSet);
+		return convertAndReturn(delegate.zRangeByLex(serialize(key), range, limit), byteSetToStringSet);
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.springframework.data.redis.connection.RedisZSetCommands#zRevRangeByLex(java.lang.String, org.springframework.data.redis.connection.RedisZSetCommands.Range, org.springframework.data.redis.connection.RedisZSetCommands.Limit)
+	 */
+	@Override
+	public Set<byte[]> zRevRangeByLex(byte[] key, Range range, Limit limit) {
+		return convertAndReturn(delegate.zRevRangeByLex(key, range, limit), identityConverter);
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.springframework.data.redis.connection.StringRedisConnection#zRevRangeByLex(java.lang.String, org.springframework.data.redis.connection.RedisZSetCommands.Range, org.springframework.data.redis.connection.RedisZSetCommands.Limit)
+	 */
+	@Override
+	public Set<String> zRevRangeByLex(String key, Range range, Limit limit) {
+		return convertAndReturn(delegate.zRevRangeByLex(serialize(key), range, limit), byteSetToStringSet);
 	}
 
 	/*

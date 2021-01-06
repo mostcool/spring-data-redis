@@ -23,23 +23,22 @@ import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
+import org.junit.jupiter.api.AfterEach;
+
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.core.task.SyncTaskExecutor;
-import org.springframework.data.redis.ConnectionFactoryTracker;
 import org.springframework.data.redis.SettingsUtils;
 import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
+import org.springframework.data.redis.connection.jedis.extension.JedisConnectionFactoryExtension;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
-import org.springframework.data.redis.connection.lettuce.LettuceTestClientResources;
+import org.springframework.data.redis.connection.lettuce.extension.LettuceConnectionFactoryExtension;
 import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
+import org.springframework.data.redis.test.extension.RedisStanalone;
+import org.springframework.data.redis.test.extension.parametrized.MethodSource;
+import org.springframework.data.redis.test.extension.parametrized.ParameterizedRedisTest;
 
 /**
  * Integration tests confirming that {@link RedisMessageListenerContainer} closes connections after unsubscribing
@@ -49,7 +48,7 @@ import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
  * @author Christoph Strobl
  * @author Mark Paluch
  */
-@RunWith(Parameterized.class)
+@MethodSource("testParams")
 public class SubscriptionConnectionTests {
 
 	private static final Log logger = LogFactory.getLog(SubscriptionConnectionTests.class);
@@ -68,11 +67,25 @@ public class SubscriptionConnectionTests {
 
 	public SubscriptionConnectionTests(RedisConnectionFactory connectionFactory) {
 		this.connectionFactory = connectionFactory;
-		ConnectionFactoryTracker.add(connectionFactory);
 	}
 
-	@After
-	public void tearDown() throws Exception {
+	public static Collection<Object[]> testParams() {
+		int port = SettingsUtils.getPort();
+		String host = SettingsUtils.getHost();
+
+		// Jedis
+		JedisConnectionFactory jedisConnFactory = JedisConnectionFactoryExtension
+				.getConnectionFactory(RedisStanalone.class);
+
+		// Lettuce
+		LettuceConnectionFactory lettuceConnFactory = LettuceConnectionFactoryExtension
+				.getConnectionFactory(RedisStanalone.class);
+
+		return Arrays.asList(new Object[][] { { jedisConnFactory }, { lettuceConnFactory } });
+	}
+
+	@AfterEach
+	void tearDown() throws Exception {
 		for (RedisMessageListenerContainer container : containers) {
 			if (container.isActive()) {
 				container.destroy();
@@ -80,35 +93,8 @@ public class SubscriptionConnectionTests {
 		}
 	}
 
-	@AfterClass
-	public static void cleanUp() {
-		ConnectionFactoryTracker.cleanUp();
-	}
-
-	@Parameters
-	public static Collection<Object[]> testParams() {
-		int port = SettingsUtils.getPort();
-		String host = SettingsUtils.getHost();
-
-		// Jedis
-		JedisConnectionFactory jedisConnFactory = new JedisConnectionFactory();
-		jedisConnFactory.setPort(port);
-		jedisConnFactory.setHostName(host);
-		jedisConnFactory.afterPropertiesSet();
-
-		// Lettuce
-		LettuceConnectionFactory lettuceConnFactory = new LettuceConnectionFactory();
-		lettuceConnFactory.setClientResources(LettuceTestClientResources.getSharedClientResources());
-		lettuceConnFactory.setPort(port);
-		lettuceConnFactory.setHostName(host);
-		lettuceConnFactory.setValidateConnection(true);
-		lettuceConnFactory.afterPropertiesSet();
-
-		return Arrays.asList(new Object[][] { { jedisConnFactory }, { lettuceConnFactory } });
-	}
-
-	@Test
-	public void testStopMessageListenerContainers() throws Exception {
+	@ParameterizedRedisTest
+	void testStopMessageListenerContainers() throws Exception {
 		// Grab all 8 connections from the pool. They should be released on
 		// container stop
 		for (int i = 0; i < 8; i++) {
@@ -137,8 +123,8 @@ public class SubscriptionConnectionTests {
 		connection.close();
 	}
 
-	@Test
-	public void testRemoveLastListener() throws Exception {
+	@ParameterizedRedisTest
+	void testRemoveLastListener() throws Exception {
 		// Grab all 8 connections from the pool
 		MessageListener listener = new MessageListenerAdapter(handler);
 		for (int i = 0; i < 8; i++) {
@@ -162,8 +148,8 @@ public class SubscriptionConnectionTests {
 		connection.close();
 	}
 
-	@Test
-	public void testStopListening() throws InterruptedException {
+	@ParameterizedRedisTest
+	void testStopListening() throws InterruptedException {
 		// Grab all 8 connections from the pool.
 		MessageListener listener = new MessageListenerAdapter(handler);
 		for (int i = 0; i < 8; i++) {

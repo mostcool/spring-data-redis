@@ -25,7 +25,9 @@ import io.lettuce.core.resource.ClientResources;
 import java.time.Duration;
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+
+import org.springframework.data.redis.test.extension.LettuceTestClientResources;
 
 /**
  * Unit tests for {@link LettucePoolingClientConfiguration}.
@@ -34,10 +36,10 @@ import org.junit.Test;
  * @author Christoph Strobl
  * @author Longlong Zhao
  */
-public class LettucePoolingClientConfigurationUnitTests {
+class LettucePoolingClientConfigurationUnitTests {
 
 	@Test // DATAREDIS-667, DATAREDIS-918
-	public void shouldCreateEmptyConfiguration() {
+	void shouldCreateEmptyConfiguration() {
 
 		LettucePoolingClientConfiguration configuration = LettucePoolingClientConfiguration.defaultConfiguration();
 
@@ -57,7 +59,7 @@ public class LettucePoolingClientConfigurationUnitTests {
 	}
 
 	@Test // DATAREDIS-667
-	public void shouldConfigureAllProperties() {
+	void shouldConfigureAllProperties() {
 
 		ClientOptions clientOptions = ClientOptions.create();
 		ClientResources sharedClientResources = LettuceTestClientResources.getSharedClientResources();
@@ -87,7 +89,7 @@ public class LettucePoolingClientConfigurationUnitTests {
 	}
 
 	@Test // DATAREDIS-956
-	public void shouldConfigureReadFrom() {
+	void shouldConfigureReadFrom() {
 
 		GenericObjectPoolConfig poolConfig = new GenericObjectPoolConfig();
 
@@ -101,7 +103,7 @@ public class LettucePoolingClientConfigurationUnitTests {
 	}
 
 	@Test // DATAREDIS-956
-	public void shouldConfigureClientName() {
+	void shouldConfigureClientName() {
 
 		GenericObjectPoolConfig poolConfig = new GenericObjectPoolConfig();
 

@@ -20,11 +20,11 @@ import static org.mockito.Mockito.*;
 
 import java.io.Serializable;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.connection.RedisConnection;
@@ -40,15 +40,15 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * @author Christoph Strobl
  * @author Mark Paluch
  */
-@RunWith(MockitoJUnitRunner.class)
-public class RedisTemplateUnitTests {
+@ExtendWith(MockitoExtension.class)
+class RedisTemplateUnitTests {
 
 	private RedisTemplate<Object, Object> template;
 	private @Mock RedisConnectionFactory connectionFactoryMock;
 	private @Mock RedisConnection redisConnectionMock;
 
-	@Before
-	public void setUp() {
+	@BeforeEach
+	void setUp() {
 
 		TransactionSynchronizationManager.clear();
 
@@ -60,21 +60,21 @@ public class RedisTemplateUnitTests {
 	}
 
 	@Test // DATAREDIS-277
-	public void slaveOfIsDelegatedToConnectionCorrectly() {
+	void slaveOfIsDelegatedToConnectionCorrectly() {
 
 		template.slaveOf("127.0.0.1", 1001);
 		verify(redisConnectionMock, times(1)).slaveOf(eq("127.0.0.1"), eq(1001));
 	}
 
 	@Test // DATAREDIS-277
-	public void slaveOfNoOneIsDelegatedToConnectionCorrectly() {
+	void slaveOfNoOneIsDelegatedToConnectionCorrectly() {
 
 		template.slaveOfNoOne();
 		verify(redisConnectionMock, times(1)).slaveOfNoOne();
 	}
 
 	@Test // DATAREDIS-501
-	public void templateShouldPassOnAndUseResoureLoaderClassLoaderToDefaultJdkSerializerWhenNotAlreadySet() {
+	void templateShouldPassOnAndUseResoureLoaderClassLoaderToDefaultJdkSerializerWhenNotAlreadySet() {
 
 		ShadowingClassLoader scl = new ShadowingClassLoader(ClassLoader.getSystemClassLoader());
 
@@ -92,7 +92,7 @@ public class RedisTemplateUnitTests {
 	}
 
 	@Test // DATAREDIS-531
-	public void executeWithStickyConnectionShouldNotCloseConnectionWhenDone() {
+	void executeWithStickyConnectionShouldNotCloseConnectionWhenDone() {
 
 		CapturingCallback callback = new CapturingCallback();
 		template.executeWithStickyConnection(callback);
@@ -102,7 +102,7 @@ public class RedisTemplateUnitTests {
 	}
 
 	@Test // DATAREDIS-988
-	public void executeSessionShouldReuseConnection() {
+	void executeSessionShouldReuseConnection() {
 
 		template.execute(new SessionCallback<Object>() {
 			@Nullable
@@ -120,9 +120,7 @@ public class RedisTemplateUnitTests {
 	}
 
 	@Test // DATAREDIS-988
-	public void executeSessionInTransactionShouldReuseConnection() {
-
-		TransactionSynchronizationManager.setCurrentTransactionReadOnly(true);
+	void executeSessionInTransactionShouldReuseConnection() {
 
 		template.execute(new SessionCallback<Object>() {
 			@Override
@@ -138,16 +136,15 @@ public class RedisTemplateUnitTests {
 		verify(redisConnectionMock).close();
 	}
 
-	@Test // DATAREDIS-988
-	public void transactionAwareTemplateShouldReleaseConnection() {
+	@Test // DATAREDIS-988, DATAREDIS-891
+	void transactionAwareTemplateShouldReleaseConnection() {
 
 		template.setEnableTransactionSupport(true);
-		TransactionSynchronizationManager.setCurrentTransactionReadOnly(true);
 
-		template.execute(new SessionCallback<Object>() {
-
+		template.execute(new RedisCallback<Object>() {
+			@Nullable
 			@Override
-			public <K, V> Object execute(RedisOperations<K, V> operations) throws DataAccessException {
+			public Object doInRedis(RedisConnection connection) throws DataAccessException {
 
 				template.multi();
 				template.multi();
@@ -155,11 +152,11 @@ public class RedisTemplateUnitTests {
 			}
 		});
 
-		verify(connectionFactoryMock, times(2)).getConnection();
-		verify(redisConnectionMock, times(2)).close();
+		verify(connectionFactoryMock, times(3)).getConnection();
+		verify(redisConnectionMock, times(3)).close();
 	}
 
-	static class SomeArbitrarySerializableObject implements Serializable {
+	private static class SomeArbitrarySerializableObject implements Serializable {
 		private static final long serialVersionUID = -5973659324040506423L;
 	}
 

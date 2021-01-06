@@ -17,18 +17,17 @@ package org.springframework.data.redis.support.collections;
 
 import static org.assertj.core.api.Assertions.*;
 
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 
-import org.springframework.data.redis.ConnectionFactoryTracker;
 import org.springframework.data.redis.ObjectFactory;
-import org.springframework.data.redis.SettingsUtils;
 import org.springframework.data.redis.StringObjectFactory;
 import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
+import org.springframework.data.redis.connection.jedis.extension.JedisConnectionFactoryExtension;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.support.collections.RedisCollectionFactoryBean.CollectionType;
+import org.springframework.data.redis.test.extension.RedisStanalone;
 
 /**
  * @author Costin Leau
@@ -39,26 +38,15 @@ public class RedisCollectionFactoryBeanTests {
 	protected StringRedisTemplate template;
 	protected RedisStore col;
 
-	public RedisCollectionFactoryBeanTests() {
-		JedisConnectionFactory jedisConnFactory = new JedisConnectionFactory();
-		jedisConnFactory.setUsePool(true);
-
-		jedisConnFactory.setPort(SettingsUtils.getPort());
-		jedisConnFactory.setHostName(SettingsUtils.getHost());
-
-		jedisConnFactory.afterPropertiesSet();
+	RedisCollectionFactoryBeanTests() {
+		JedisConnectionFactory jedisConnFactory = JedisConnectionFactoryExtension
+				.getConnectionFactory(RedisStanalone.class);
 
 		this.template = new StringRedisTemplate(jedisConnFactory);
-		ConnectionFactoryTracker.add(jedisConnFactory);
 	}
 
-	@AfterClass
-	public static void cleanUp() {
-		ConnectionFactoryTracker.cleanUp();
-	}
-
-	@After
-	public void tearDown() throws Exception {
+	@AfterEach
+	void tearDown() throws Exception {
 		// clean up the whole db
 		template.execute((RedisCallback<Object>) connection -> {
 			connection.flushDb();
@@ -81,7 +69,7 @@ public class RedisCollectionFactoryBeanTests {
 	}
 
 	@Test
-	public void testNone() throws Exception {
+	void testNone() throws Exception {
 		RedisStore store = createCollection("nosrt", CollectionType.PROPERTIES);
 		assertThat(store).isInstanceOf(RedisProperties.class);
 
@@ -99,7 +87,7 @@ public class RedisCollectionFactoryBeanTests {
 	}
 
 	@Test
-	public void testExistingCol() throws Exception {
+	void testExistingCol() throws Exception {
 		String key = "set";
 		String val = "value";
 

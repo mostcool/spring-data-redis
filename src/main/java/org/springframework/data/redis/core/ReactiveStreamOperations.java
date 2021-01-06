@@ -24,10 +24,22 @@ import java.util.Map;
 import org.reactivestreams.Publisher;
 import org.springframework.data.domain.Range;
 import org.springframework.data.redis.connection.RedisZSetCommands.Limit;
-import org.springframework.data.redis.connection.stream.*;
+import org.springframework.data.redis.connection.stream.ByteBufferRecord;
+import org.springframework.data.redis.connection.stream.Consumer;
+import org.springframework.data.redis.connection.stream.MapRecord;
+import org.springframework.data.redis.connection.stream.ObjectRecord;
+import org.springframework.data.redis.connection.stream.PendingMessage;
+import org.springframework.data.redis.connection.stream.PendingMessages;
+import org.springframework.data.redis.connection.stream.PendingMessagesSummary;
+import org.springframework.data.redis.connection.stream.ReadOffset;
+import org.springframework.data.redis.connection.stream.Record;
+import org.springframework.data.redis.connection.stream.RecordId;
 import org.springframework.data.redis.connection.stream.StreamInfo.XInfoConsumer;
 import org.springframework.data.redis.connection.stream.StreamInfo.XInfoGroup;
 import org.springframework.data.redis.connection.stream.StreamInfo.XInfoStream;
+import org.springframework.data.redis.connection.stream.StreamOffset;
+import org.springframework.data.redis.connection.stream.StreamReadOptions;
+import org.springframework.data.redis.connection.stream.StreamRecords;
 import org.springframework.data.redis.hash.HashMapper;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
@@ -343,7 +355,7 @@ public interface ReactiveStreamOperations<K, HK, HV> extends HashMapperProvider<
 
 		Assert.notNull(targetType, "Target type must not be null");
 
-		return range(key, range, limit).map(it -> StreamObjectMapper.toObjectRecord(this, it, targetType));
+		return range(key, range, limit).map(it -> map(it, targetType));
 	}
 
 	/**
@@ -424,7 +436,7 @@ public interface ReactiveStreamOperations<K, HK, HV> extends HashMapperProvider<
 
 		Assert.notNull(targetType, "Target type must not be null");
 
-		return read(readOptions, streams).map(it -> StreamObjectMapper.toObjectRecord(this, it, targetType));
+		return read(readOptions, streams).map(it -> map(it, targetType));
 	}
 
 	/**
@@ -478,7 +490,7 @@ public interface ReactiveStreamOperations<K, HK, HV> extends HashMapperProvider<
 
 		Assert.notNull(targetType, "Target type must not be null");
 
-		return read(consumer, readOptions, streams).map(it -> StreamObjectMapper.toObjectRecord(this, it, targetType));
+		return read(consumer, readOptions, streams).map(it -> map(it, targetType));
 	}
 
 	/**
@@ -532,7 +544,7 @@ public interface ReactiveStreamOperations<K, HK, HV> extends HashMapperProvider<
 
 		Assert.notNull(targetType, "Target type must not be null");
 
-		return reverseRange(key, range, limit).map(it -> StreamObjectMapper.toObjectRecord(this, it, targetType));
+		return reverseRange(key, range, limit).map(it -> map(it, targetType));
 	}
 
 	/**
@@ -566,4 +578,29 @@ public interface ReactiveStreamOperations<K, HK, HV> extends HashMapperProvider<
 	 */
 	@Override
 	<V> HashMapper<V, HK, HV> getHashMapper(Class<V> targetType);
+
+	/**
+	 * Map records from {@link MapRecord} to {@link ObjectRecord}.
+	 *
+	 * @param record the stream records to map.
+	 * @param targetType the target type of the payload.
+	 * @return the mapped {@link ObjectRecord}.
+	 * @since 2.x
+	 */
+	default <V> ObjectRecord<K, V> map(MapRecord<K, HK, HV> record, Class<V> targetType) {
+
+		Assert.notNull(record, "Records must not be null");
+		Assert.notNull(targetType, "Target type must not be null");
+
+		return StreamObjectMapper.toObjectRecord(record, this, targetType);
+	}
+
+	/**
+	 * Deserialize a {@link ByteBufferRecord} using the configured serialization context into a {@link MapRecord}.
+	 *
+	 * @param record the stream record to map.
+	 * @return deserialized {@link MapRecord}.
+	 * @since 2.x
+	 */
+	MapRecord<K, HK, HV> deserializeRecord(ByteBufferRecord record);
 }

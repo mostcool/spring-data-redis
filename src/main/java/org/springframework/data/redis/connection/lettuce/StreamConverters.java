@@ -236,7 +236,6 @@ class StreamConverters {
 			if (source.getUnixTime() != null) {
 				args.time(source.getUnixTime());
 			}
-
 			return args;
 
 		}

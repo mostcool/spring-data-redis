@@ -20,10 +20,12 @@ import static org.assertj.core.api.Assertions.*;
 import io.lettuce.core.ClientOptions;
 import io.lettuce.core.TimeoutOptions;
 import io.lettuce.core.resource.ClientResources;
+import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 
-import org.junit.Test;
+
+import org.springframework.data.redis.test.extension.LettuceTestClientResources;
 
 /**
  * Unit tests for {@link LettuceClientConfiguration}.
@@ -32,10 +34,10 @@ import org.junit.Test;
  * @author Christoph Strobl
  * @author Yanming Zhou
  */
-public class LettuceClientConfigurationUnitTests {
+class LettuceClientConfigurationUnitTests {
 
 	@Test // DATAREDIS-574, DATAREDIS-576, DATAREDIS-667, DATAREDIS-918
-	public void shouldCreateEmptyConfiguration() {
+	void shouldCreateEmptyConfiguration() {
 
 		LettuceClientConfiguration configuration = LettuceClientConfiguration.defaultConfiguration();
 
@@ -56,7 +58,7 @@ public class LettuceClientConfigurationUnitTests {
 	}
 
 	@Test // DATAREDIS-574, DATAREDIS-576, DATAREDIS-667
-	public void shouldConfigureAllProperties() {
+	void shouldConfigureAllProperties() {
 
 		ClientOptions clientOptions = ClientOptions.create();
 		ClientResources sharedClientResources = LettuceTestClientResources.getSharedClientResources();
@@ -85,7 +87,7 @@ public class LettuceClientConfigurationUnitTests {
 	}
 
 	@Test // DATAREDIS-881
-	public void shutdownQuietPeriodShouldDefaultToTimeout() {
+	void shutdownQuietPeriodShouldDefaultToTimeout() {
 
 		LettuceClientConfiguration configuration = LettuceClientConfiguration.builder()
 				.shutdownTimeout(Duration.ofSeconds(42)).build();
@@ -95,12 +97,12 @@ public class LettuceClientConfigurationUnitTests {
 	}
 
 	@Test // DATAREDIS-576
-	public void clientConfigurationThrowsExceptionForNullClientName() {
+	void clientConfigurationThrowsExceptionForNullClientName() {
 		assertThatIllegalArgumentException().isThrownBy(() -> LettuceClientConfiguration.builder().clientName(null));
 	}
 
 	@Test // DATAREDIS-576
-	public void clientConfigurationThrowsExceptionForEmptyClientName() {
+	void clientConfigurationThrowsExceptionForEmptyClientName() {
 		assertThatIllegalArgumentException().isThrownBy(() -> LettuceClientConfiguration.builder().clientName(" "));
 	}
 }

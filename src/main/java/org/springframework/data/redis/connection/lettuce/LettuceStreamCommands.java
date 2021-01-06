@@ -49,6 +49,7 @@ import org.springframework.util.Assert;
  * @author Mark Paluch
  * @author Tugdual Grall
  * @author Dejan Jankov
+ * @author Dengliming
  * @since 2.2
  */
 class LettuceStreamCommands implements RedisStreamCommands {
@@ -134,11 +135,7 @@ class LettuceStreamCommands implements RedisStreamCommands {
 		String[] ids = options.getIdsAsStringArray();
 		io.lettuce.core.Consumer<byte[]> from = io.lettuce.core.Consumer.from(LettuceConverters.toBytes(group),
 				LettuceConverters.toBytes(newOwner));
-		XClaimArgs args = StreamConverters.toXClaimArgs(options);
-
-		if (true /* TODO: set the JUSTID flag */ ) {
-			throw new UnsupportedOperationException("Lettuce does not support XCLAIM with JUSTID. (Ref: lettuce-io#1233)");
-		}
+		XClaimArgs args = StreamConverters.toXClaimArgs(options).justid();
 
 		try {
 			if (isPipelined()) {
